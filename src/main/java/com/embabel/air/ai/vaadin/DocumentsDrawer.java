@@ -1,7 +1,7 @@
 package com.embabel.air.ai.vaadin;
 
 import com.embabel.air.ai.DocumentService;
-import com.embabel.air.backend.user.AirUser;
+import com.embabel.air.backend.Customer;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.button.Button;
@@ -24,7 +24,7 @@ public class DocumentsDrawer extends Div {
 
     private final DocumentListSection documentsSection;
 
-    public DocumentsDrawer(DocumentService documentService, AirUser user, Runnable onDocumentsChanged) {
+    public DocumentsDrawer(DocumentService documentService, Customer user, Runnable onDocumentsChanged) {
         // Backdrop for closing panel when clicking outside
         backdrop = new Div();
         backdrop.addClassName("side-panel-backdrop");

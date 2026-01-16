@@ -28,5 +28,7 @@ spring:
     password: embabel
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
 

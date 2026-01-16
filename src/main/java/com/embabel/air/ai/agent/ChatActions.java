@@ -7,7 +7,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
-import com.embabel.air.backend.user.AirUser;
+import com.embabel.air.backend.Customer;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.UserMessage;
 import org.slf4j.Logger;
@@ -40,9 +40,9 @@ public class ChatActions {
      * Bind user to AgentProcess. Will run once at the start of the process.
      */
     @Action
-    AirUser bindUser(OperationContext context) {
+    Customer bindUser(OperationContext context) {
         var forUser = context.getProcessContext().getProcessOptions().getIdentities().getForUser();
-        if (forUser instanceof AirUser au) {
+        if (forUser instanceof Customer au) {
             return au;
         } else {
             logger.warn("bindUser: forUser is not an AirUser: {}", forUser);
@@ -56,7 +56,7 @@ public class ChatActions {
     )
     void respond(
             Conversation conversation,
-            AirUser user,
+            Customer user,
             ActionContext context) {
         var assistantMessage = context.
                 ai()

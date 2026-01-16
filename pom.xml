@@ -72,6 +72,16 @@
         </dependency>
 
         <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>vaadin-spring-boot-starter</artifactId>
         </dependency>
@@ -106,6 +116,12 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -153,6 +169,51 @@
                     <version>${embabel-agent.version}</version>
                 </dependency>
             </dependencies>
+        </profile>
+        <profile>
+            <id>generate-ddl</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.github.hibernate.orm.tooling</groupId>
+                        <artifactId>hibernate-enhance-maven-plugin</artifactId>
+                        <version>${hibernate.version}</version>
+                        <executions>
+                            <execution>
+                                <id>generate-ddl</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>enhance</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>de.jpdigital</groupId>
+                        <artifactId>hibernate-ddl-maven-plugin</artifactId>
+                        <version>3.0.0</version>
+                        <executions>
+                            <execution>
+                                <id>generate-ddl</id>
+                                <phase>process-classes</phase>
+                                <goals>
+                                    <goal>gen-ddl</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <dialects>
+                                <param>POSTGRESQL</param>
+                            </dialects>
+                            <packages>
+                                <param>com.embabel.air.backend</param>
+                            </packages>
+                            <outputDirectory>${project.basedir}/src/main/resources/db</outputDirectory>
+                            <createDropStatements>true</createDropStatements>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 

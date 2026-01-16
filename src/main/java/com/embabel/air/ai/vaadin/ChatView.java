@@ -6,8 +6,8 @@ import com.embabel.agent.api.channel.OutputChannelEvent;
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent;
 import com.embabel.air.ai.AirProperties;
 import com.embabel.air.ai.DocumentService;
-import com.embabel.air.backend.user.AirUser;
-import com.embabel.air.backend.user.AirUserService;
+import com.embabel.air.backend.Customer;
+import com.embabel.air.backend.CustomerService;
 import com.embabel.chat.*;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
@@ -46,7 +46,7 @@ public class ChatView extends VerticalLayout {
     private final String persona;
     private final AirProperties properties;
     private final DocumentService documentService;
-    private final AirUser currentUser;
+    private final Customer currentUser;
 
     private VerticalLayout messagesLayout;
     private Scroller messagesScroller;
@@ -55,7 +55,7 @@ public class ChatView extends VerticalLayout {
     private Footer footer;
 
     public ChatView(Chatbot chatbot, AirProperties properties, DocumentService documentService,
-                    AirUserService userService) {
+                    CustomerService userService) {
         this.chatbot = chatbot;
         this.properties = properties;
         this.documentService = documentService;
