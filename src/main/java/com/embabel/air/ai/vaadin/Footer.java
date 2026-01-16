@@ -1,4 +1,4 @@
-package com.embabel.air.vaadin;
+package com.embabel.air.ai.vaadin;
 
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;

@@ -1,4 +1,4 @@
-package com.embabel.air.user;
+package com.embabel.air.backend.user;
 
 import com.embabel.agent.api.identity.UserService;
 

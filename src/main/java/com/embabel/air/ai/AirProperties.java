@@ -1,4 +1,4 @@
-package com.embabel.air;
+package com.embabel.air.ai;
 
 import com.embabel.agent.rag.ingestion.ContentChunker;
 import com.embabel.common.ai.model.LlmOptions;

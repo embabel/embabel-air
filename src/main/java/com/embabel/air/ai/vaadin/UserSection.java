@@ -1,6 +1,6 @@
-package com.embabel.air.vaadin;
+package com.embabel.air.ai.vaadin;
 
-import com.embabel.air.user.AirUser;
+import com.embabel.air.backend.user.AirUser;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;

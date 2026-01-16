@@ -1,4 +1,4 @@
-package com.embabel.air;
+package com.embabel.air.ai.agent;
 
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.EmbabelComponent;
@@ -6,7 +6,8 @@ import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
-import com.embabel.air.user.AirUser;
+import com.embabel.air.ai.AirProperties;
+import com.embabel.air.backend.user.AirUser;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.UserMessage;
 import org.slf4j.Logger;

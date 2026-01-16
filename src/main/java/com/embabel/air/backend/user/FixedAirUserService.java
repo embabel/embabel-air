@@ -1,4 +1,4 @@
-package com.embabel.air.user;
+package com.embabel.air.backend.user;
 
 import org.jetbrains.annotations.Nullable;
 import org.springframework.security.core.context.SecurityContextHolder;

@@ -1,7 +1,7 @@
-package com.embabel.air.vaadin;
+package com.embabel.air.ai.vaadin;
 
-import com.embabel.air.DocumentService;
-import com.embabel.air.user.AirUser;
+import com.embabel.air.ai.DocumentService;
+import com.embabel.air.backend.user.AirUser;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.button.Button;

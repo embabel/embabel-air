@@ -20,3 +20,13 @@ embabel:
 
     default-embedding-model:
       model: text-embedding-3-small
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/embabel_air
+    username: embabel
+    password: embabel
+  jpa:
+    hibernate:
+      ddl-auto: none
+

@@ -1,13 +1,13 @@
-package com.embabel.air.vaadin;
+package com.embabel.air.ai.vaadin;
 
 import com.embabel.agent.api.channel.MessageOutputChannelEvent;
 import com.embabel.agent.api.channel.OutputChannel;
 import com.embabel.agent.api.channel.OutputChannelEvent;
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent;
-import com.embabel.air.AirProperties;
-import com.embabel.air.DocumentService;
-import com.embabel.air.user.AirUser;
-import com.embabel.air.user.AirUserService;
+import com.embabel.air.ai.AirProperties;
+import com.embabel.air.ai.DocumentService;
+import com.embabel.air.backend.user.AirUser;
+import com.embabel.air.backend.user.AirUserService;
 import com.embabel.chat.*;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;

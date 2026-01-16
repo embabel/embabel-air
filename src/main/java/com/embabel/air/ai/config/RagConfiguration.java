@@ -1,7 +1,8 @@
-package com.embabel.air;
+package com.embabel.air.ai.config;
 
 import com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer;
 import com.embabel.agent.rag.lucene.LuceneSearchOperations;
+import com.embabel.air.ai.AirProperties;
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
 import com.embabel.common.ai.model.ModelProvider;
 import org.slf4j.Logger;
