@@ -20,6 +20,16 @@ docker compose up -d
 
 This starts a PostgreSQL 17 container with pgvector extension on port 5432.
 
+### Reset Database
+
+To completely reset the database (wipe all data and re-run migrations):
+
+```bash
+docker compose down -v && docker compose up -d
+```
+
+The `-v` flag removes the Docker volume, deleting all data. On next startup, Flyway will re-run all migrations and the dev data seeder will recreate demo users and flights.
+
 ### Database Configuration
 
 Default connection settings in `application.yml`:
