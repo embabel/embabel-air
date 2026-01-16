@@ -50,6 +50,10 @@ public class SkyPointsStatus {
         this.level = level;
     }
 
+    public void addPoints(int additionalPoints) {
+        this.points += additionalPoints;
+    }
+
     public int getPoints() {
         return points;
     }

@@ -11,6 +11,7 @@ import com.embabel.air.backend.Customer;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.UserMessage;
+import com.embabel.springdata.EntityNavigationService;
 import com.embabel.springdata.ToolFacadeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,20 +27,23 @@ public class ChatActions {
 
     private final Logger logger = LoggerFactory.getLogger(ChatActions.class);
 
-    private final ToolishRag toolishRag;
+    private final ToolishRag airlinePolicies;
     private final AirProperties properties;
 
     private final ToolFacadeService toolFacadeService;
+    private final EntityNavigationService entityNavigationService;
 
     public ChatActions(
             SearchOperations searchOperations,
             ToolFacadeService toolFacadeService,
+            EntityNavigationService entityNavigationService,
             AirProperties properties) {
-        this.toolishRag = new ToolishRag(
-                "docs",
-                "Document knowledge base",
+        this.airlinePolicies = new ToolishRag(
+                "policies",
+                "Embabel policies",
                 searchOperations);
         this.toolFacadeService = toolFacadeService;
+        this.entityNavigationService = entityNavigationService;
         this.properties = properties;
     }
 
@@ -72,8 +76,9 @@ public class ChatActions {
         var assistantMessage = context.
                 ai()
                 .withLlm(properties.chatLlm())
-                .withReference(toolishRag)
-                .withTools(toolFacadeService.createTools(new CustomerTools(customer)))
+                .withId("ChatActions.respond")
+                .withReference(airlinePolicies)
+                .withTools(entityNavigationService.makeNavigable(customer))
                 .withTemplate("air")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties

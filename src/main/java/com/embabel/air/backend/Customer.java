@@ -1,7 +1,9 @@
 package com.embabel.air.backend;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.identity.User;
 import jakarta.persistence.*;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
@@ -84,6 +86,7 @@ public class Customer implements User {
     }
 
     @Nullable
+    @LlmTool
     public SkyPointsStatus getStatus() {
         return skyPointsStatus;
     }
@@ -91,15 +94,12 @@ public class Customer implements User {
     /**
      * Enroll in our program to earn SkyPoints.
      */
-    public void signUpForSkyPoints() {
+    public SkyPointsStatus signUpForSkyPoints() {
         if (this.skyPointsStatus != null) {
             throw new IllegalStateException("Customer already has a status");
         }
         this.skyPointsStatus = SkyPointsStatus.createNew();
-    }
-
-    public void setStatus(SkyPointsStatus status) {
-        this.skyPointsStatus = status;
+        return this.skyPointsStatus;
     }
 
     public List<Reservation> getReservations() {
@@ -111,4 +111,8 @@ public class Customer implements User {
         reservation.setCustomer(this);
     }
 
+    @ApiStatus.Internal
+    public void setStatus(SkyPointsStatus skyPointsStatus) {
+        this.skyPointsStatus = skyPointsStatus;
+    }
 }

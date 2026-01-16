@@ -4,6 +4,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.Verbosity;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.agent.AgentProcessChatbot;
+import com.embabel.springdata.EntityNavigationService;
 import com.embabel.springdata.ToolFacadeService;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.context.annotation.Bean;
@@ -30,5 +31,13 @@ class ChatConfiguration {
             ListableBeanFactory listableBeanFactory
     ) {
         return new ToolFacadeService(transactionTemplate, listableBeanFactory);
+    }
+
+    @Bean
+    EntityNavigationService entityNavigationService(
+            TransactionTemplate transactionTemplate,
+            ListableBeanFactory listableBeanFactory
+    ) {
+        return new EntityNavigationService(transactionTemplate, listableBeanFactory);
     }
 }
