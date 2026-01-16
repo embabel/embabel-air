@@ -13,21 +13,10 @@ public class AirUser implements User {
     private final String displayName;
     private final String username;
 
-    private String currentContext;
-
     public AirUser(String id, String displayName, String username) {
         this.id = id;
         this.displayName = displayName;
         this.username = username;
-        this.currentContext = "personal";
-    }
-
-    public String getCurrentContext() {
-        return currentContext;
-    }
-
-    public void setCurrentContext(String currentContext) {
-        this.currentContext = currentContext;
     }
 
     @Override

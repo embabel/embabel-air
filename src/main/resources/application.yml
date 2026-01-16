@@ -11,11 +11,6 @@ embabel-air:
     model: gpt-4.1-mini
     temperature: 0.0
 
-  voice:
-    persona: assistant
-    max-words: 250
-
-  objective: general
 
 embabel:
 

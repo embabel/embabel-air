@@ -1,26 +1,19 @@
 package com.embabel.air.vaadin;
 
-import com.embabel.air.DocumentService;
 import com.embabel.air.user.AirUser;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 
 /**
- * User section component showing avatar, name, context selector, and logout button.
+ * User section component showing avatar, name, and logout button.
  */
 class UserSection extends HorizontalLayout {
 
-    private final ComboBox<String> contextSelect;
-    private final DocumentService documentService;
-
-    UserSection(AirUser user, DocumentService documentService) {
-        this.documentService = documentService;
-
+    UserSection(AirUser user) {
         setAlignItems(FlexComponent.Alignment.CENTER);
         setSpacing(true);
 
@@ -41,26 +34,6 @@ class UserSection extends HorizontalLayout {
 
         profileChip.add(avatar, userName);
 
-        // Context selector (ComboBox allows creating new contexts by typing)
-        contextSelect = new ComboBox<>();
-        refreshContexts();
-        contextSelect.setValue(user.getCurrentContext());
-        contextSelect.setAllowCustomValue(true);
-        contextSelect.setPlaceholder("Context");
-        contextSelect.addClassName("context-select");
-        contextSelect.addCustomValueSetListener(e -> {
-            var newContext = e.getDetail().trim();
-            if (!newContext.isEmpty()) {
-                user.setCurrentContext(newContext);
-                contextSelect.setValue(newContext);
-            }
-        });
-        contextSelect.addValueChangeListener(e -> {
-            if (e.getValue() != null) {
-                user.setCurrentContext(e.getValue());
-            }
-        });
-
         // Logout button
         var logoutButton = new Button("Logout", e -> {
             getUI().ifPresent(ui -> ui.getPage().setLocation("/logout"));
@@ -68,15 +41,7 @@ class UserSection extends HorizontalLayout {
         logoutButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         logoutButton.addClassName("logout-button");
 
-        add(profileChip, contextSelect, logoutButton);
-    }
-
-    /**
-     * Refresh the context dropdown from document metadata.
-     */
-    void refreshContexts() {
-        var contexts = documentService.contexts();
-        contextSelect.setItems(contexts);
+        add(profileChip, logoutButton);
     }
 
     private String getInitials(String name) {

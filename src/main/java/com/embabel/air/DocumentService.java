@@ -1,14 +1,12 @@
 package com.embabel.air;
 
 import com.embabel.agent.rag.store.ChunkingContentElementRepository;
-import com.embabel.air.user.AirUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -28,15 +26,6 @@ public class DocumentService {
     public record DocumentInfo(String uri, String title, String context, Instant ingestedAt) {
     }
 
-    public record Context(AirUser user) {
-        public static final String CONTEXT_KEY = "context";
-        public Map<String, Object> metadata() {
-            return Map.of(
-                    "ingestedBy", user.getId(),
-                    CONTEXT_KEY, user.getCurrentContext()
-            );
-        }
-    }
 
     public DocumentService(ChunkingContentElementRepository contentRepository) {
         this.contentRepository = contentRepository;

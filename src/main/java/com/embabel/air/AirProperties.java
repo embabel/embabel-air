@@ -9,21 +9,12 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
  * Properties for chatbot
  *
  * @param chatLlm       LLM model and hyperparameters to use
- * @param objective     the goal of the chatbot's responses
- * @param voice         the persona and output style of the chatbot
  * @param chunkerConfig configuration for ingestion
  */
 @ConfigurationProperties(prefix = "embabel-air")
 public record AirProperties(
         @NestedConfigurationProperty LlmOptions chatLlm,
-        String objective,
-        @NestedConfigurationProperty Voice voice,
         @NestedConfigurationProperty ContentChunker.Config chunkerConfig
 ) {
-
-    public record Voice(
-            String persona,
-            int maxWords
-    ) {
-    }
 }
+

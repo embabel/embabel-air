@@ -4,11 +4,11 @@ import com.embabel.agent.api.channel.MessageOutputChannelEvent;
 import com.embabel.agent.api.channel.OutputChannel;
 import com.embabel.agent.api.channel.OutputChannelEvent;
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent;
-import com.embabel.chat.*;
-import com.embabel.air.DocumentService;
 import com.embabel.air.AirProperties;
+import com.embabel.air.DocumentService;
 import com.embabel.air.user.AirUser;
 import com.embabel.air.user.AirUserService;
+import com.embabel.chat.*;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -53,7 +53,6 @@ public class ChatView extends VerticalLayout {
     private TextField inputField;
     private Button sendButton;
     private Footer footer;
-    private UserSection userSection;
 
     public ChatView(Chatbot chatbot, AirProperties properties, DocumentService documentService,
                     AirUserService userService) {
@@ -61,7 +60,7 @@ public class ChatView extends VerticalLayout {
         this.properties = properties;
         this.documentService = documentService;
         this.currentUser = userService.getAuthenticatedUser();
-        this.persona = properties.voice().persona();
+        this.persona = "Emmie";
 
         setSizeFull();
         setPadding(true);
@@ -80,7 +79,7 @@ public class ChatView extends VerticalLayout {
         headerImage.setHeight("60px");
 
         // User section (right)
-        userSection = new UserSection(currentUser, documentService);
+        var userSection = new UserSection(currentUser);
         headerRow.add(headerImage, userSection);
         add(headerRow);
 
@@ -116,7 +115,6 @@ public class ChatView extends VerticalLayout {
         remove(footer);
         footer = new Footer(documentService.getDocumentCount(), documentService.getChunkCount());
         add(footer);
-        userSection.refreshContexts();
     }
 
     private record SessionData(ChatSession chatSession, BlockingQueue<Message> responseQueue) {
