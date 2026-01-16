@@ -1,16 +1,14 @@
 package com.embabel.air.backend;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(indexes = {
+        @Index(name = "idx_flight_search", columnList = "departureAirportCode, arrivalAirportCode, departureDateTime")
+})
 public class FlightSegment {
 
     @Id
@@ -26,6 +24,10 @@ public class FlightSegment {
     private LocalDateTime arrivalDateTime;
 
     private String airline;
+
+    private String equipment;
+
+    private int seatsLeft;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reservation_id")
@@ -65,6 +67,22 @@ public class FlightSegment {
 
     public String getAirline() {
         return airline;
+    }
+
+    public String getEquipment() {
+        return equipment;
+    }
+
+    public Duration getDuration() {
+        return Duration.between(departureDateTime, arrivalDateTime);
+    }
+
+    public int getSeatsLeft() {
+        return seatsLeft;
+    }
+
+    public void setSeatsLeft(int seatsLeft) {
+        this.seatsLeft = seatsLeft;
     }
 
     public Reservation getReservation() {
