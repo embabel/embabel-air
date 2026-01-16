@@ -1,5 +1,8 @@
 package com.embabel.air.ai;
 
+import com.embabel.agent.rag.ingestion.HierarchicalContentReader;
+import com.embabel.agent.rag.ingestion.TikaHierarchicalContentReader;
+import com.embabel.agent.rag.model.NavigableDocument;
 import com.embabel.agent.rag.store.ChunkingContentElementRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +22,8 @@ public class DocumentService {
 
     private final ChunkingContentElementRepository contentRepository;
     private final List<DocumentInfo> documents = new CopyOnWriteArrayList<>();
+    private final HierarchicalContentReader contentReader = new TikaHierarchicalContentReader();
+
 
     /**
      * Summary info about an ingested document.
@@ -26,9 +31,16 @@ public class DocumentService {
     public record DocumentInfo(String uri, String title, String context, Instant ingestedAt) {
     }
 
-
     public DocumentService(ChunkingContentElementRepository contentRepository) {
         this.contentRepository = contentRepository;
+    }
+
+    public NavigableDocument ingestUrl(String url) {
+        logger.info("Ingesting URL: {}", url);
+        var document = contentReader.parseResource(url);
+        contentRepository.writeAndChunkDocument(document);
+        logger.info("Ingested URL: {}", url);
+        return document;
     }
 
     /**
@@ -36,16 +48,6 @@ public class DocumentService {
      */
     public List<DocumentInfo> getDocuments() {
         return List.copyOf(documents);
-    }
-
-    /**
-     * Get list of distinct contexts found in documents
-     */
-    public List<String> contexts() {
-        return documents.stream()
-                .map(DocumentInfo::context)
-                .distinct()
-                .toList();
     }
 
     /**
