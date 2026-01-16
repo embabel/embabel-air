@@ -1,9 +1,11 @@
 package com.embabel.springdata;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.agent.api.common.LlmReference;
 import com.embabel.agent.api.tool.MatryoshkaTool;
 import com.embabel.agent.api.tool.Tool;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ListableBeanFactory;
@@ -210,6 +212,32 @@ public class EntityNavigationService {
     private Object getEntityId(Object entity) {
         var entityInfo = repositories.getEntityInformationFor(entity.getClass());
         return entityInfo.getId(entity);
+    }
+
+    public LlmReference makeReference(Object entity, String prefix) {
+        var tools = makeNavigable(entity);
+        // TODO add static convenience method in agent
+        return new LlmReference() {
+            @Override
+            public @NonNull String notes() {
+                return "";
+            }
+
+            @Override
+            public @NonNull List<Tool> tools() {
+                return tools;
+            }
+
+            @Override
+            public @NonNull String getDescription() {
+                return "customer";
+            }
+
+            @Override
+            public @NonNull String getName() {
+                return "customer";
+            }
+        };
     }
 
     /**
