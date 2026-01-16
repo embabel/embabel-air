@@ -14,8 +14,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H3;
-import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
@@ -75,22 +74,14 @@ public class ChatView extends VerticalLayout {
         headerRow.setJustifyContentMode(JustifyContentMode.BETWEEN);
         headerRow.setPadding(false);
 
-        // Title section (left)
-        var titleSection = new VerticalLayout();
-        titleSection.setPadding(false);
-        titleSection.setSpacing(false);
-
-        var title = new H3("Embabel Air");
-        title.addClassName("chat-title");
-
-        var subtitle = new Span("AI-powered assistant");
-        subtitle.addClassName("chat-subtitle");
-
-        titleSection.add(title, subtitle);
+        // Logo/header image (left)
+        var headerImage = new Image("images/embabel-air.jpg", "Embabel Air");
+        headerImage.addClassName("header-logo");
+        headerImage.setHeight("60px");
 
         // User section (right)
         userSection = new UserSection(currentUser, documentService);
-        headerRow.add(titleSection, userSection);
+        headerRow.add(headerImage, userSection);
         add(headerRow);
 
         // Messages container
