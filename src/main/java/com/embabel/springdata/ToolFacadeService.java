@@ -27,15 +27,15 @@ import java.util.Map;
  * context.ai().withTools(tools)...
  * </pre>
  */
-public class EntityTools {
+public class ToolFacadeService {
 
-    private static final Logger logger = LoggerFactory.getLogger(EntityTools.class);
+    private static final Logger logger = LoggerFactory.getLogger(ToolFacadeService.class);
 
     private final TransactionTemplate transactionTemplate;
     private final Repositories repositories;
     private final ObjectMapper objectMapper;
 
-    public EntityTools(
+    public ToolFacadeService(
             TransactionTemplate transactionTemplate,
             ListableBeanFactory beanFactory) {
         this.transactionTemplate = transactionTemplate;

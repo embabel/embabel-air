@@ -11,7 +11,7 @@ import com.embabel.air.backend.Customer;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.UserMessage;
-import com.embabel.springdata.EntityTools;
+import com.embabel.springdata.ToolFacadeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,17 +29,17 @@ public class ChatActions {
     private final ToolishRag toolishRag;
     private final AirProperties properties;
 
-    private final EntityTools entityTools;
+    private final ToolFacadeService toolFacadeService;
 
     public ChatActions(
             SearchOperations searchOperations,
-            EntityTools entityTools,
+            ToolFacadeService toolFacadeService,
             AirProperties properties) {
         this.toolishRag = new ToolishRag(
                 "docs",
                 "Document knowledge base",
                 searchOperations);
-        this.entityTools = entityTools;
+        this.toolFacadeService = toolFacadeService;
         this.properties = properties;
     }
 
@@ -73,7 +73,7 @@ public class ChatActions {
                 ai()
                 .withLlm(properties.chatLlm())
                 .withReference(toolishRag)
-                .withTools(entityTools.createTools(new CustomerTools(customer)))
+                .withTools(toolFacadeService.createTools(new CustomerTools(customer)))
                 .withTemplate("air")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties
