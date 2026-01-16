@@ -38,4 +38,4 @@ node/
 package-lock.json
 
 # Vaadin
-frontend/generated/
+src/main/frontend/
