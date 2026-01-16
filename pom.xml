@@ -93,6 +93,13 @@
             <version>0.24.0</version>
         </dependency>
 
+        <!-- Fake data for dev -->
+        <dependency>
+            <groupId>net.datafaker</groupId>
+            <artifactId>datafaker</artifactId>
+            <version>2.4.2</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>com.embabel.agent</groupId>

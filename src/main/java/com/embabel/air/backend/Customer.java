@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * User model for Embabel Air.
  */
@@ -26,21 +29,28 @@ public class Customer implements User {
     @Nullable
     private String email;
 
+    private String password;
+
     @Embedded
     @Nullable
     private SkyPointsStatus skyPointsStatus;
 
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private final List<Reservation> reservations = new ArrayList<>();
+
     protected Customer() {
     }
 
-    public Customer(String displayName, String username) {
+    public Customer(String displayName, String username, String password) {
         this.displayName = displayName;
         this.username = username;
+        this.password = password;
     }
 
-    public Customer(String displayName, String username, @Nullable String email) {
+    public Customer(String displayName, String username, String password, @Nullable String email) {
         this.displayName = displayName;
         this.username = username;
+        this.password = password;
         this.email = email;
     }
 
@@ -69,6 +79,10 @@ public class Customer implements User {
         this.email = email;
     }
 
+    public String getPassword() {
+        return password;
+    }
+
     @Nullable
     public SkyPointsStatus getStatus() {
         return skyPointsStatus;
@@ -82,6 +96,19 @@ public class Customer implements User {
             throw new IllegalStateException("Customer already has a status");
         }
         this.skyPointsStatus = SkyPointsStatus.createNew();
+    }
+
+    public void setStatus(SkyPointsStatus status) {
+        this.skyPointsStatus = status;
+    }
+
+    public List<Reservation> getReservations() {
+        return reservations;
+    }
+
+    public void addReservation(Reservation reservation) {
+        reservations.add(reservation);
+        reservation.setCustomer(this);
     }
 
 }

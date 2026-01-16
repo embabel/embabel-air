@@ -22,6 +22,8 @@ embabel:
       model: text-embedding-3-small
 
 spring:
+  profiles:
+    active: dev
   datasource:
     url: jdbc:postgresql://localhost:5432/embabel_air
     username: embabel

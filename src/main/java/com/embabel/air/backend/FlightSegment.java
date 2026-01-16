@@ -73,6 +73,10 @@ public class FlightSegment {
         return equipment;
     }
 
+    public void setEquipment(String equipment) {
+        this.equipment = equipment;
+    }
+
     public Duration getDuration() {
         return Duration.between(departureDateTime, arrivalDateTime);
     }

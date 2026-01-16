@@ -34,6 +34,14 @@ public class SkyPointsStatus {
         return status;
     }
 
+    public static SkyPointsStatus create(Level level, int points, LocalDate signUpDate) {
+        var status = new SkyPointsStatus();
+        status.level = level;
+        status.points = points;
+        status.signUpDate = signUpDate;
+        return status;
+    }
+
     public Level getLevel() {
         return level;
     }

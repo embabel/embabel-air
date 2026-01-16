@@ -109,6 +109,42 @@ public class ChatView extends VerticalLayout {
         // Documents drawer
         var drawer = new DocumentsDrawer(documentService, currentUser, this::refreshFooter);
         getElement().appendChild(drawer.getElement());
+
+        // Initialize session on attach (kicks off agent process and greeting)
+        addAttachListener(event -> initializeSession());
+    }
+
+    private void initializeSession() {
+        var ui = getUI().orElse(null);
+        if (ui == null) return;
+
+        var vaadinSession = VaadinSession.getCurrent();
+        if (vaadinSession.getAttribute("sessionData") != null) {
+            return; // Session already exists
+        }
+
+        // Create session and output channel on UI thread
+        var responseQueue = new ArrayBlockingQueue<Message>(10);
+        var outputChannel = new VaadinOutputChannel(responseQueue, ui);
+        var chatSession = chatbot.createSession(currentUser, outputChannel, UUID.randomUUID().toString());
+        var sessionData = new SessionData(chatSession, responseQueue);
+        vaadinSession.setAttribute("sessionData", sessionData);
+        logger.info("Created new chat session");
+
+        // Wait for greeting in background thread
+        new Thread(() -> {
+            try {
+                var greeting = responseQueue.poll(5, TimeUnit.SECONDS);
+                if (greeting != null) {
+                    ui.access(() -> {
+                        messagesLayout.add(ChatMessageBubble.assistant(persona, greeting.getContent()));
+                        scrollToBottom();
+                    });
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }).start();
     }
 
     private void refreshFooter() {
