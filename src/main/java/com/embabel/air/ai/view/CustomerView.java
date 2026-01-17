@@ -20,7 +20,7 @@ import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.Reservation;
 import com.embabel.air.backend.SkyPointsStatus;
 import com.embabel.springdata.EntityView;
-import com.embabel.springdata.EntityViewFor;
+import com.embabel.springdata.LlmView;
 import io.vavr.collection.List;
 
 import java.time.LocalDate;
@@ -28,7 +28,7 @@ import java.time.LocalDate;
 /**
  * EntityView for Customer that exposes customer tools to the LLM.
  */
-@EntityViewFor(entity = Customer.class, description = "Customer account with reservations and loyalty status")
+@LlmView
 public interface CustomerView extends EntityView<Customer> {
 
     @LlmTool(description = "Get the customer's flight reservations, optionally filtered by date range")

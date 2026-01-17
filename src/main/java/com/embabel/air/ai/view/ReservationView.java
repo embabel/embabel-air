@@ -18,12 +18,12 @@ package com.embabel.air.ai.view;
 import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.air.backend.Reservation;
 import com.embabel.springdata.EntityView;
-import com.embabel.springdata.EntityViewFor;
+import com.embabel.springdata.LlmView;
 
 /**
  * EntityView for Customer that exposes customer tools to the LLM.
  */
-@EntityViewFor(entity = Reservation.class, description = "Reservation view")
+@LlmView
 public interface ReservationView extends EntityView<Reservation> {
 
     @Override

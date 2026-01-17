@@ -74,7 +74,7 @@ import static com.embabel.agent.api.tool.ToolUtils.formatToolTree;
  *
  * <p>Example usage:
  * <pre>{@code
- * @EntityViewFor(entity = Customer.class, description = "Customer account")
+ * @LlmView(entity = Customer.class, description = "Customer account")
  * public interface CustomerView extends EntityView<Customer> {
  *
  *     @LlmTool(description = "Get customer's reservation history")
@@ -137,7 +137,7 @@ public class EntityViewService {
     }
 
     /**
-     * Scan for interfaces annotated with @EntityViewFor and register them.
+     * Scan for interfaces annotated with @LlmView and register them.
      */
     private void scanForEntityViews(String... basePackages) {
         // Override isCandidateComponent to allow interfaces (default only allows concrete classes)
@@ -147,15 +147,23 @@ public class EntityViewService {
                 return beanDefinition.getMetadata().isInterface();
             }
         };
-        scanner.addIncludeFilter(new AnnotationTypeFilter(EntityViewFor.class));
+        scanner.addIncludeFilter(new AnnotationTypeFilter(LlmView.class));
 
         for (var basePackage : basePackages) {
             for (var bd : scanner.findCandidateComponents(basePackage)) {
                 try {
                     var viewInterface = Class.forName(bd.getBeanClassName());
-                    var annotation = viewInterface.getAnnotation(EntityViewFor.class);
+                    var annotation = viewInterface.getAnnotation(LlmView.class);
                     if (annotation != null && EntityView.class.isAssignableFrom(viewInterface)) {
-                        registerView(annotation.entity(), viewInterface, annotation.description());
+                        var entityClass = annotation.entity();
+                        if (entityClass == Void.class) {
+                            entityClass = inferEntityClass(viewInterface);
+                        }
+                        var description = annotation.description();
+                        if (description.isEmpty()) {
+                            description = entityClass.getSimpleName();
+                        }
+                        registerView(entityClass, viewInterface, description);
                     }
                 } catch (ClassNotFoundException e) {
                     logger.warn("Failed to load EntityView class: {}", bd.getBeanClassName(), e);
@@ -167,6 +175,47 @@ public class EntityViewService {
                 viewRegistry.entrySet().stream()
                         .map(e -> e.getKey().getSimpleName() + " -> " + e.getValue().getSimpleName())
                         .toList());
+    }
+
+    /**
+     * Infer the entity class from the generic type parameter of EntityView.
+     * Supports direct extension (interface FooView extends EntityView&lt;Foo&gt;)
+     * and intermediate interfaces.
+     */
+    static Class<?> inferEntityClass(Class<?> viewInterface) {
+        // Check direct interfaces
+        for (var type : viewInterface.getGenericInterfaces()) {
+            var result = extractEntityClass(type);
+            if (result != null) {
+                return result;
+            }
+        }
+
+        // Check parent interfaces recursively
+        for (var parent : viewInterface.getInterfaces()) {
+            if (EntityView.class.isAssignableFrom(parent)) {
+                var result = inferEntityClass(parent);
+                if (result != null && result != Object.class) {
+                    return result;
+                }
+            }
+        }
+
+        throw new IllegalArgumentException(
+                "Cannot infer entity class from " + viewInterface.getName() +
+                ". Ensure it extends EntityView<YourEntity> or specify entity explicitly in @LlmView.");
+    }
+
+    private static Class<?> extractEntityClass(java.lang.reflect.Type type) {
+        if (type instanceof java.lang.reflect.ParameterizedType pt) {
+            if (pt.getRawType() == EntityView.class) {
+                var args = pt.getActualTypeArguments();
+                if (args.length > 0 && args[0] instanceof Class<?> entityClass) {
+                    return entityClass;
+                }
+            }
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -197,7 +246,7 @@ public class EntityViewService {
             throw new IllegalArgumentException(
                     "No EntityView registered for " + entityClass.getSimpleName() +
                             ". Create an interface extending EntityView<" + entityClass.getSimpleName() +
-                            "> annotated with @EntityViewFor.");
+                            "> annotated with @LlmView.");
         }
 
         var entitySimpleName = entityClass.getSimpleName().toLowerCase();
@@ -220,36 +269,35 @@ public class EntityViewService {
                         return viewOf(relatedEntity);
                     }
 
-                    // Handle summary() - try template first
+                    // Handle summary() - try template, then user override, then strategy
                     if ("summary".equals(method.getName()) && method.getParameterCount() == 0) {
                         var rendered = tryRenderTemplate(entitySimpleName + "_short", entity, entitySimpleName);
                         if (rendered != null) {
                             return rendered;
                         }
-                        // Fall through to default method
+                        try {
+                            return invokeDefault(proxy, method, args, viewInterface);
+                        } catch (EntityView.UseDefaultStrategy e) {
+                            return EntityViewStrategy.DEFAULT.summary(entity);
+                        }
                     }
 
-                    // Handle fullText() - try template first
+                    // Handle fullText() - try template, then user override, then strategy
                     if ("fullText".equals(method.getName()) && method.getParameterCount() == 0) {
                         var rendered = tryRenderTemplate(entitySimpleName + "_long", entity, entitySimpleName);
                         if (rendered != null) {
                             return rendered;
                         }
-                        // Fall through to default method
+                        try {
+                            return invokeDefault(proxy, method, args, viewInterface);
+                        } catch (EntityView.UseDefaultStrategy e) {
+                            return EntityViewStrategy.DEFAULT.fullText(entity);
+                        }
                     }
 
                     // Handle default methods
                     if (method.isDefault()) {
-                        return java.lang.invoke.MethodHandles.lookup()
-                                .findSpecial(
-                                        viewInterface,
-                                        method.getName(),
-                                        java.lang.invoke.MethodType.methodType(
-                                                method.getReturnType(),
-                                                method.getParameterTypes()),
-                                        viewInterface)
-                                .bindTo(proxy)
-                                .invokeWithArguments(args != null ? args : new Object[0]);
+                        return invokeDefault(proxy, method, args, viewInterface);
                     }
 
                     // Handle Object methods
@@ -282,6 +330,22 @@ public class EntityViewService {
         } catch (NoSuchTemplateException e) {
             return null;
         }
+    }
+
+    /**
+     * Invoke a default method on the proxy.
+     */
+    private static Object invokeDefault(Object proxy, java.lang.reflect.Method method, Object[] args, Class<?> viewInterface) throws Throwable {
+        return java.lang.invoke.MethodHandles.lookup()
+                .findSpecial(
+                        viewInterface,
+                        method.getName(),
+                        java.lang.invoke.MethodType.methodType(
+                                method.getReturnType(),
+                                method.getParameterTypes()),
+                        viewInterface)
+                .bindTo(proxy)
+                .invokeWithArguments(args != null ? args : new Object[0]);
     }
 
     /**
@@ -381,7 +445,7 @@ public class EntityViewService {
         if (!viewRegistry.containsKey(entityClass)) {
             throw new IllegalArgumentException(
                     "No EntityView registered for " + entityClass.getSimpleName() +
-                            ". Create an interface annotated with @EntityViewFor.");
+                            ". Create an interface annotated with @LlmView.");
         }
 
         if (repositories.getRepositoryFor(entityClass).isEmpty()) {

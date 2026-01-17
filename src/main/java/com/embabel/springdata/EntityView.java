@@ -19,13 +19,13 @@ package com.embabel.springdata;
  * A view over an entity that exposes tools to the LLM.
  *
  * <p>Extend this interface and annotate methods with {@code @LlmTool} to expose
- * entity operations. The {@link #getEntity()} and {@link #toView(Object)} methods
- * are provided by the framework via proxy - you only need to implement
- * {@link #summary()} and {@link #fullText()}.
+ * entity operations. The {@link #getEntity()} method is provided by the framework
+ * via proxy. Override {@link #summary()} and {@link #fullText()} for custom formatting,
+ * or leave them unimplemented to use reflection-based defaults.
  *
  * <p>Example:
  * <pre>{@code
- * @EntityViewFor(entity = Customer.class, description = "Customer account")
+ * @LlmView(entity = Customer.class, description = "Customer account")
  * public interface CustomerView extends EntityView<Customer> {
  *
  *     @LlmTool(description = "Get customer's reservations")
@@ -33,21 +33,22 @@ package com.embabel.springdata;
  *         return getEntity().getReservations();
  *     }
  *
- *     @Override
- *     default String summary() {
- *         return "Customer: " + getEntity().getName();
- *     }
- *
- *     @Override
- *     default String fullText() {
- *         return summary() + "\nEmail: " + getEntity().getEmail();
- *     }
+ *     // Optionally override summary/fullText for custom formatting
  * }
  * }</pre>
  *
  * @param <E> The entity type
  */
 public interface EntityView<E> {
+
+    /**
+     * Marker exception thrown by default implementations to signal
+     * that the framework should use its reflection-based strategy.
+     */
+    class UseDefaultStrategy extends RuntimeException {
+        public static final UseDefaultStrategy INSTANCE = new UseDefaultStrategy();
+        private UseDefaultStrategy() {}
+    }
 
     /**
      * Get the wrapped entity.
@@ -65,17 +66,18 @@ public interface EntityView<E> {
     }
 
     /**
-     * Return a short summary of the entity for LLM context.
-     * MUST include the id
-     *
-     * @return A concise description of the entity
+     * Return a short summary of the entity.
+     * Override for custom formatting; default uses reflection (entity type + ID).
      */
-    String summary();
+    default String summary() {
+        throw UseDefaultStrategy.INSTANCE;
+    }
 
     /**
-     * Return a detailed text representation of the entity.
-     *
-     * @return Full details about the entity
+     * Return detailed text representation of the entity.
+     * Override for custom formatting; default uses reflection (simple properties + collection sizes).
      */
-    String fullText();
+    default String fullText() {
+        throw UseDefaultStrategy.INSTANCE;
+    }
 }
