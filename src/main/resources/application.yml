@@ -36,6 +36,6 @@ spring:
 
 logging:
   level:
-    com.embabel.agent.spi.loop.support: DEBUG
-    com.embabel.agent.spi.support.springai: DEBUG
+    com.embabel.agent.spi.loop.support: INFO
+    com.embabel.agent.spi.support.springai: INFO
 
