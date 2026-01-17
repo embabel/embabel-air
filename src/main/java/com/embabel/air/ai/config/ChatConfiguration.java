@@ -4,8 +4,8 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.Verbosity;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.agent.AgentProcessChatbot;
-import com.embabel.springdata.EntityNavigationService;
-import com.embabel.springdata.ToolFacadeService;
+import com.embabel.common.textio.template.TemplateRenderer;
+import com.embabel.springdata.EntityViewService;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,18 +26,16 @@ class ChatConfiguration {
     }
 
     @Bean
-    ToolFacadeService entityTools(
+    EntityViewService entityViewService(
             TransactionTemplate transactionTemplate,
-            ListableBeanFactory listableBeanFactory
+            ListableBeanFactory listableBeanFactory,
+            TemplateRenderer templateRenderer
     ) {
-        return new ToolFacadeService(transactionTemplate, listableBeanFactory);
-    }
-
-    @Bean
-    EntityNavigationService entityNavigationService(
-            TransactionTemplate transactionTemplate,
-            ListableBeanFactory listableBeanFactory
-    ) {
-        return new EntityNavigationService(transactionTemplate, listableBeanFactory);
+        return new EntityViewService(
+                transactionTemplate,
+                listableBeanFactory,
+                templateRenderer,
+                "com.embabel.air"
+        );
     }
 }

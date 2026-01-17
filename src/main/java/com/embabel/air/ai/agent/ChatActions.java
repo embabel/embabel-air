@@ -2,7 +2,6 @@ package com.embabel.air.ai.agent;
 
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.EmbabelComponent;
-import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
@@ -11,12 +10,10 @@ import com.embabel.air.backend.Customer;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.UserMessage;
-import com.embabel.springdata.EntityNavigationService;
-import com.embabel.springdata.ToolFacadeService;
+import com.embabel.springdata.EntityViewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,21 +26,17 @@ public class ChatActions {
 
     private final ToolishRag airlinePolicies;
     private final AirProperties properties;
-
-    private final ToolFacadeService toolFacadeService;
-    private final EntityNavigationService entityNavigationService;
+    private final EntityViewService entityViewService;
 
     public ChatActions(
             SearchOperations searchOperations,
-            ToolFacadeService toolFacadeService,
-            EntityNavigationService entityNavigationService,
+            EntityViewService entityViewService,
             AirProperties properties) {
         this.airlinePolicies = new ToolishRag(
                 "policies",
                 "Embabel policies",
                 searchOperations);
-        this.toolFacadeService = toolFacadeService;
-        this.entityNavigationService = entityNavigationService;
+        this.entityViewService = entityViewService;
         this.properties = properties;
     }
 
@@ -78,32 +71,11 @@ public class ChatActions {
                 .withLlm(properties.chatLlm())
                 .withId("ChatActions.respond")
                 .withReference(airlinePolicies)
-                .withReference(entityNavigationService.makeReference(customer, "customer"))
+                .withReference(entityViewService.makeReference(customer))
                 .withTemplate("air")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties
                 ));
         context.sendMessage(conversation.addMessage(assistantMessage));
-    }
-}
-
-class CustomerTools {
-
-    private final Customer customer;
-
-    public CustomerTools(Customer customer) {
-        this.customer = customer;
-    }
-
-    @LlmTool
-    public List<String> getReservations() {
-        var reservations = customer.getReservations();
-        return reservations.stream()
-                .map(r -> "Reservation %s: %d flight segments, booked on %s".formatted(
-                        r.getBookingReference(),
-                        r.getFlightSegments().size(),
-                        r.getCreatedAt().toString()
-                ))
-                .toList();
     }
 }

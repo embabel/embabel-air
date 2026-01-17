@@ -1,0 +1,84 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.air.backend;
+
+import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.springdata.EntityView;
+import com.embabel.springdata.EntityViewFor;
+
+import java.time.LocalDate;
+import java.util.List;
+
+/**
+ * EntityView for Customer that exposes customer tools to the LLM.
+ */
+@EntityViewFor(entity = Customer.class, description = "Customer account with reservations and loyalty status")
+public interface CustomerView extends EntityView<Customer> {
+
+    @LlmTool(description = "Get the customer's flight reservations, optionally filtered by date range")
+    default List<Reservation> getReservations(
+            @LlmTool.Param(description = "Start date (YYYY-MM-DD), or omit for all reservations", required = false)
+            LocalDate fromDate,
+            @LlmTool.Param(description = "End date (YYYY-MM-DD), or omit for all reservations", required = false)
+            LocalDate toDate
+    ) {
+        var reservations = getEntity().getReservations();
+        return reservations.stream()
+                .filter(r -> {
+                    if (fromDate == null && toDate == null) {
+                        return true;
+                    }
+                    var d = r.getFlightSegments().getFirst().getDepartureDateTime().toLocalDate();
+                    if (fromDate != null && d.isBefore(fromDate)) {
+                        return false;
+                    }
+                    return toDate == null || !d.isAfter(toDate);
+                })
+                .toList();
+    }
+
+    @LlmTool(description = "Get the customer's SkyPoints loyalty status")
+    default SkyPointsStatus getStatus() {
+        return getEntity().getStatus();
+    }
+
+    @Override
+    default String summary() {
+        var customer = getEntity();
+        var status = customer.getStatus();
+        return "Customer: %s%s".formatted(
+                customer.getDisplayName(),
+                status != null ? " (" + status.getLevel() + ")" : ""
+        );
+    }
+
+    @Override
+    default String fullText() {
+        var customer = getEntity();
+        var status = customer.getStatus();
+        var sb = new StringBuilder();
+        sb.append("Customer: ").append(customer.getDisplayName()).append("\n");
+        if (customer.getEmail() != null) {
+            sb.append("Email: ").append(customer.getEmail()).append("\n");
+        }
+        if (status != null) {
+            sb.append("SkyPoints Status: ").append(status.getLevel()).append("\n");
+            sb.append("Points Balance: ").append(status.getPoints()).append("\n");
+        }
+        sb.append("Reservations: ").append(customer.getReservations().size());
+        return sb.toString();
+    }
+}
