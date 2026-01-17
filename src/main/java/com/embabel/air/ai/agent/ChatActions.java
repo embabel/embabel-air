@@ -72,8 +72,8 @@ public class ChatActions {
                 .withLlm(properties.chatLlm())
                 .withId("ChatActions.respond")
                 .withReference(airlinePolicies)
-                .withReference(entityViewService.makeReference(customer))
-                .withTool(entityViewService.finderFor(Reservation.class))
+                .withReference(entityViewService.viewOf(customer))
+                .withTools(entityViewService.findersFor(Reservation.class))
                 .withTemplate("air")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties

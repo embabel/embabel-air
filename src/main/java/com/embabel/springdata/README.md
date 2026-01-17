@@ -23,20 +23,21 @@ That's it. The framework:
 - Generates default fullText with all properties
 - Creates tools from `@LlmTool` methods
 - Handles transactions and lazy loading
+- **EntityView IS an LlmReference** - add directly to conversations
 
 ## Usage
 
 ### Wire up in your agent
 
 ```java
-// Create a reference with tools for the LLM
-var reference = entityViewService.makeReference(customer);
+// Create a view - it's already an LlmReference with content + tools
+var customerView = entityViewService.viewOf(customer);
 
-// Use in conversation
-conversation.withReference(reference);
+// Add directly to conversation (provides both prompt content and tools)
+conversation.withReference(customerView);
 
-// Or add a finder tool to look up entities by ID
-conversation.withTool(entityViewService.finderFor(Reservation.class));
+// Or add finder tools to look up entities by ID
+conversation.withTools(entityViewService.findersFor(Reservation.class, Flight.class));
 ```
 
 ### Customize summary and fullText
@@ -206,10 +207,14 @@ Customer
 
 ## Finder Tools
 
-Create a finder tool to let the LLM look up entities:
+Create finder tools to let the LLM look up entities:
 
 ```java
+// Single finder
 conversation.withTool(entityViewService.finderFor(Reservation.class));
+
+// Multiple finders
+conversation.withTools(entityViewService.findersFor(Reservation.class, Flight.class));
 ```
 
 This creates a `find_reservation` tool that:
@@ -302,8 +307,8 @@ public class ChatActions {
 
     public Conversation createConversation(Customer customer) {
         return Conversation.builder()
-                .withReference(entityViewService.makeReference(customer))
-                .withTool(entityViewService.finderFor(Reservation.class))
+                .withReference(entityViewService.viewOf(customer))
+                .withTools(entityViewService.findersFor(Reservation.class))
                 .build();
     }
 }

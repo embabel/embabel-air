@@ -3,7 +3,7 @@
 ![Vaadin](https://img.shields.io/badge/Vaadin-00B4F0?style=for-the-badge&logo=Vaadin&logoColor=white)
 ![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
 
-<img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
+<img align="left" src="src/main/resources/META-INF/resources/images/embabel-air.jpg" width="180">
 
 &nbsp;&nbsp;&nbsp;&nbsp;
 
@@ -11,7 +11,7 @@
 
 # Embabel Air
 
-AI-powered airline assistant with chat interface.
+AI-powered airline assistant with chat interface built on [Embabel Agent](https://github.com/embabel/embabel-agent).
 
 ## Prerequisites
 
@@ -72,11 +72,37 @@ This outputs to `src/main/resources/db/schema.sql`. Copy relevant changes to a n
 
 ## Running the Application
 
-```bash
-mvn spring-boot:run
-```
+### Quick Start
 
-The application starts on http://localhost:8747
+1. Start the database:
+   ```bash
+   docker compose up -d
+   ```
+
+2. Run the application:
+   ```bash
+   mvn spring-boot:run
+   ```
+
+3. Open http://localhost:8747 in your browser
+
+### Default Port
+
+The application runs on port **8747** by default (configured in `application.yml`).
+
+### Demo Users
+
+The dev data seeder creates demo users with different loyalty tiers:
+
+| Username | Status | Description |
+|----------|--------|-------------|
+| alex.novice | New | New customer, no flights yet |
+| sam.bronze | Bronze | Some travel history |
+| jamie.silver | Silver | Regular traveler |
+| taylor.gold | Gold | Frequent flyer |
+| morgan.platinum | Platinum | Elite traveler |
+
+All demo users use password: `password`
 
 ## Running Tests
 

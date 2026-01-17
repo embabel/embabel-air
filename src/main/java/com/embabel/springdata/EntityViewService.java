@@ -250,6 +250,10 @@ public class EntityViewService {
         }
 
         var entitySimpleName = entityClass.getSimpleName().toLowerCase();
+        var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
+
+        // Lazily create tools on first access
+        var toolsHolder = new Object() { List<Tool> tools = null; };
 
         return (EntityView<E>) Proxy.newProxyInstance(
                 viewInterface.getClassLoader(),
@@ -267,6 +271,34 @@ public class EntityViewService {
                             return null;
                         }
                         return viewOf(relatedEntity);
+                    }
+
+                    // Handle LlmReference.getName()
+                    if ("getName".equals(method.getName()) && method.getParameterCount() == 0) {
+                        return entitySimpleName;
+                    }
+
+                    // Handle LlmReference.getDescription()
+                    if ("getDescription".equals(method.getName()) && method.getParameterCount() == 0) {
+                        return description;
+                    }
+
+                    // Handle LlmReference.tools()
+                    if ("tools".equals(method.getName()) && method.getParameterCount() == 0) {
+                        if (toolsHolder.tools == null) {
+                            toolsHolder.tools = createTools((EntityView<E>) proxy);
+                        }
+                        return toolsHolder.tools;
+                    }
+
+                    // Handle LlmReference.notes() - reload entity in transaction for lazy loading
+                    if ("notes".equals(method.getName()) && method.getParameterCount() == 0) {
+                        var entityId = getEntityId(entity);
+                        var result = transactionTemplate.execute(status -> {
+                            var freshView = reloadView(entityClass, entityId);
+                            return freshView.fullText();
+                        });
+                        return result != null ? result : "";
                     }
 
                     // Handle summary() - try template, then user override, then strategy
@@ -349,57 +381,8 @@ public class EntityViewService {
     }
 
     /**
-     * Create an LlmReference for the given entity.
-     *
-     * <p>The returned reference:
-     * <ul>
-     *   <li>Creates an EntityView for the entity</li>
-     *   <li>Exposes all @LlmTool methods from the view as tools</li>
-     *   <li>Uses the view's summary() as notes</li>
-     *   <li>Uses the view's fullText() for the prompt contribution</li>
-     * </ul>
-     *
-     * @param entity The entity to create a reference for
-     * @param <E>    Entity type
-     * @return An LlmReference wrapping the entity's view and tools
-     * @throws IllegalArgumentException if no EntityView is registered for the entity class
+     * Reload an entity within a transaction and create a fresh view.
      */
-    public <E> LlmReference makeReference(E entity) {
-        var view = viewOf(entity);
-        var tools = createTools(view);
-        var entityClass = entity.getClass();
-        var entityId = getEntityId(entity);
-        var entityName = entityClass.getSimpleName().toLowerCase();
-        var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
-
-        return new LlmReference() {
-            @Override
-            public @NonNull String notes() {
-                // Execute within transaction to allow lazy loading
-                var result = transactionTemplate.execute(status -> {
-                    var freshView = reloadView(entityClass, entityId);
-                    return freshView.fullText();
-                });
-                return result != null ? result : "";
-            }
-
-            @Override
-            public @NonNull List<Tool> tools() {
-                return tools;
-            }
-
-            @Override
-            public @NonNull String getDescription() {
-                return description;
-            }
-
-            @Override
-            public @NonNull String getName() {
-                return entityName;
-            }
-        };
-    }
-
     @SuppressWarnings("unchecked")
     private <E> EntityView<E> reloadView(Class<?> entityClass, Object entityId) {
         var repo = (CrudRepository<E, Object>) repositories.getRepositoryFor(entityClass)
@@ -427,6 +410,21 @@ public class EntityViewService {
         descriptionRegistry.put(entityClass, description);
         logger.debug("Registered EntityView {} for entity {}", viewInterface.getSimpleName(), entityClass.getSimpleName());
         return this;
+    }
+
+    /**
+     * Create finder tools for multiple entity types.
+     *
+     * @param entityClasses The entity classes to create finders for
+     * @return List of MatryoshkaTools, one per entity class
+     * @throws IllegalArgumentException if no EntityView is registered for any entity class
+     */
+    public List<MatryoshkaTool> findersFor(Class<?>... entityClasses) {
+        var finders = new ArrayList<MatryoshkaTool>();
+        for (var entityClass : entityClasses) {
+            finders.add(finderFor(entityClass));
+        }
+        return finders;
     }
 
     /**

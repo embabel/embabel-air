@@ -8,6 +8,7 @@ import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.tool.schema.Action;
 import org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -17,8 +18,10 @@ import java.util.HashMap;
 
 /**
  * Generates DDL schema from JPA entities.
- * Run with: mvn test -Dtest=GenerateDdlTest
+ * Run explicitly with: mvn test -Dtest=GenerateDdlTest
+ * Disabled by default to prevent overwriting schema.sql during normal test runs.
  */
+@Disabled("Run explicitly to regenerate schema.sql")
 class GenerateDdlTest {
 
     @Test

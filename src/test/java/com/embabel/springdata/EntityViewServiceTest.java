@@ -16,6 +16,7 @@
 package com.embabel.springdata;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.agent.api.common.LlmReference;
 import com.embabel.agent.api.tool.MatryoshkaTool;
 import com.embabel.agent.api.tool.Tool;
 import jakarta.persistence.Id;
@@ -270,52 +271,77 @@ class EntityViewServiceTest {
     }
 
     @Nested
-    class MakeReference {
+    class LlmReferenceIntegration {
 
         @BeforeEach
         void registerView() {
             service.register(TestEntity.class, TestEntityView.class, "Test entity");
             when(repositories.getEntityInformationFor(TestEntity.class)).thenReturn(entityInfo);
+            when(repositories.getRepositoryFor(TestEntity.class)).thenReturn(Optional.of(mockRepository));
+            // Make transactionTemplate execute the callback directly
+            when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+                var callback = invocation.getArgument(0, org.springframework.transaction.support.TransactionCallback.class);
+                return callback.doInTransaction(null);
+            });
         }
 
         @Test
-        void makeReference_createsReferenceWithName() {
+        void entityView_isInstanceOfLlmReference() {
             var entity = new TestEntity(1L, "Test");
-            when(entityInfo.getId(entity)).thenReturn(1L);
+            var view = service.viewOf(entity);
 
-            var ref = service.makeReference(entity);
-
-            assertThat(ref.getName()).isEqualTo("testentity");
+            assertThat(view).isInstanceOf(LlmReference.class);
         }
 
         @Test
-        void makeReference_createsReferenceWithDescription() {
+        void getName_returnsEntityClassNameLowercase() {
             var entity = new TestEntity(1L, "Test");
-            when(entityInfo.getId(entity)).thenReturn(1L);
+            var view = service.viewOf(entity);
 
-            var ref = service.makeReference(entity);
-
-            assertThat(ref.getDescription()).isEqualTo("Test entity");
+            assertThat(view.getName()).isEqualTo("testentity");
         }
 
         @Test
-        void makeReference_createsReferenceWithTools() {
+        void getDescription_returnsRegisteredDescription() {
+            var entity = new TestEntity(1L, "Test");
+            var view = service.viewOf(entity);
+
+            assertThat(view.getDescription()).isEqualTo("Test entity");
+        }
+
+        @Test
+        void notes_reloadsEntityInTransaction() {
+            var entity = new TestEntity(1L, "Hello");
+            when(entityInfo.getId(entity)).thenReturn(1L);
+            when(mockRepository.findById(1L)).thenReturn(Optional.of(entity));
+            var view = service.viewOf(entity);
+
+            assertThat(view.notes()).isEqualTo("TestEntity: Hello\nID: 1");
+        }
+
+        @Test
+        void tools_returnsToolsFromLlmToolMethods() {
             var entity = new TestEntity(1L, "Test");
             when(entityInfo.getId(entity)).thenReturn(1L);
+            var view = service.viewOf(entity);
 
-            var ref = service.makeReference(entity);
-
-            assertThat(ref.tools()).hasSize(2);
-            assertThat(ref.tools()).extracting(t -> t.getDefinition().getName())
+            assertThat(view.tools()).hasSize(2);
+            assertThat(view.tools()).extracting(t -> t.getDefinition().getName())
                     .containsExactlyInAnyOrder("greet", "getCreatedDate");
         }
 
         @Test
-        void makeReference_throwsForUnregisteredEntity() {
-            var entity = new UnregisteredEntity(1L);
+        void contribution_includesNameDescriptionAndNotes() {
+            var entity = new TestEntity(1L, "Hello");
+            when(entityInfo.getId(entity)).thenReturn(1L);
+            when(mockRepository.findById(1L)).thenReturn(Optional.of(entity));
+            var view = service.viewOf(entity);
 
-            assertThatThrownBy(() -> service.makeReference(entity))
-                    .isInstanceOf(IllegalArgumentException.class);
+            var contribution = view.contribution();
+
+            assertThat(contribution).contains("Reference: testentity");
+            assertThat(contribution).contains("Description: Test entity");
+            assertThat(contribution).contains("Notes: TestEntity: Hello");
         }
     }
 

@@ -15,6 +15,8 @@
  */
 package com.embabel.springdata;
 
+import com.embabel.agent.api.common.LlmReference;
+
 /**
  * A view over an entity that exposes tools to the LLM.
  *
@@ -23,9 +25,12 @@ package com.embabel.springdata;
  * via proxy. Override {@link #summary()} and {@link #fullText()} for custom formatting,
  * or leave them unimplemented to use reflection-based defaults.
  *
+ * <p>Implements {@link LlmReference} so views can be added directly to prompt runners
+ * and conversations. The view provides both content ({@link #notes()}) and tools.
+ *
  * <p>Example:
  * <pre>{@code
- * @LlmView(entity = Customer.class, description = "Customer account")
+ * @LlmView
  * public interface CustomerView extends EntityView<Customer> {
  *
  *     @LlmTool(description = "Get customer's reservations")
@@ -39,7 +44,7 @@ package com.embabel.springdata;
  *
  * @param <E> The entity type
  */
-public interface EntityView<E> {
+public interface EntityView<E> extends LlmReference {
 
     /**
      * Marker exception thrown by default implementations to signal
@@ -78,6 +83,31 @@ public interface EntityView<E> {
      * Override for custom formatting; default uses reflection (simple properties + collection sizes).
      */
     default String fullText() {
+        throw UseDefaultStrategy.INSTANCE;
+    }
+
+    /**
+     * LlmReference implementation - delegates to fullText().
+     * Provides the detailed entity content for the prompt.
+     */
+    @Override
+    default String notes() {
+        return fullText();
+    }
+
+    /**
+     * LlmReference name - provided by the proxy based on entity class.
+     */
+    @Override
+    default String getName() {
+        throw UseDefaultStrategy.INSTANCE;
+    }
+
+    /**
+     * LlmReference description - provided by the proxy from @LlmView or entity class name.
+     */
+    @Override
+    default String getDescription() {
         throw UseDefaultStrategy.INSTANCE;
     }
 }
