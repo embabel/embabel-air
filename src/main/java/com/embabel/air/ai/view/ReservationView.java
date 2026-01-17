@@ -29,13 +29,20 @@ public interface ReservationView extends EntityView<Reservation> {
     @Override
     default String summary() {
         var reservation = getEntity();
-        return "Reservation %s (id=%s): %d flight segments, booked on %s, from %s to %s".formatted(
+        var segments = reservation.getFlightSegments();
+
+        // Build route: DEN → IAH → DEN
+        var route = new StringBuilder();
+        route.append(segments.getFirst().getDepartureAirportCode());
+        for (var segment : segments) {
+            route.append(" → ").append(segment.getArrivalAirportCode());
+        }
+
+        return "Reservation %s (id=%s): %s, booked on %s".formatted(
                 reservation.getBookingReference(),
                 reservation.getId(),
-                reservation.getFlightSegments().size(),
-                reservation.getCreatedAt().toString(),
-                reservation.getFlightSegments().getFirst().getDepartureAirportCode(),
-                reservation.getFlightSegments().getLast().getArrivalAirportCode()
+                route,
+                reservation.getCreatedAt().toString().substring(0, 10)
         );
     }
 

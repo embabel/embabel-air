@@ -114,6 +114,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Vavr for functional collections -->
+        <dependency>
+            <groupId>io.vavr</groupId>
+            <artifactId>vavr</artifactId>
+            <version>0.10.5</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>com.embabel.agent</groupId>

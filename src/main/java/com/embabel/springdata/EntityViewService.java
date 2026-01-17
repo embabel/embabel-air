@@ -22,12 +22,13 @@ import com.embabel.agent.api.tool.Tool;
 import com.embabel.common.textio.template.NoSuchTemplateException;
 import com.embabel.common.textio.template.TemplateRenderer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.vavr.collection.Traversable;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.repository.CrudRepository;
@@ -41,6 +42,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.embabel.agent.api.tool.ToolUtils.formatToolTree;
 
 /**
  * Creates transactional tools from EntityView implementations.
@@ -193,8 +196,8 @@ public class EntityViewService {
         if (viewInterface == null) {
             throw new IllegalArgumentException(
                     "No EntityView registered for " + entityClass.getSimpleName() +
-                    ". Create an interface extending EntityView<" + entityClass.getSimpleName() +
-                    "> annotated with @EntityViewFor.");
+                            ". Create an interface extending EntityView<" + entityClass.getSimpleName() +
+                            "> annotated with @EntityViewFor.");
         }
 
         var entitySimpleName = entityClass.getSimpleName().toLowerCase();
@@ -378,13 +381,13 @@ public class EntityViewService {
         if (!viewRegistry.containsKey(entityClass)) {
             throw new IllegalArgumentException(
                     "No EntityView registered for " + entityClass.getSimpleName() +
-                    ". Create an interface annotated with @EntityViewFor.");
+                            ". Create an interface annotated with @EntityViewFor.");
         }
 
         if (repositories.getRepositoryFor(entityClass).isEmpty()) {
             throw new IllegalArgumentException(
                     "No repository found for " + entityClass.getSimpleName() +
-                    ". Ensure a CrudRepository exists for this entity.");
+                            ". Ensure a CrudRepository exists for this entity.");
         }
 
         var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
@@ -470,7 +473,7 @@ public class EntityViewService {
             }
         }
 
-        logToolTree(viewName, tools);
+        logger.info(formatToolTree(viewName, tools));
         return tools;
     }
 
@@ -496,13 +499,6 @@ public class EntityViewService {
     private Object getEntityId(Object entity) {
         var entityInfo = repositories.getEntityInformationFor(entity.getClass());
         return entityInfo.getId(entity);
-    }
-
-    /**
-     * Log a tree of tools in Maven dependency tree style.
-     */
-    public static void logToolTree(String name, List<Tool> tools) {
-        EntityNavigationService.logToolTree(name, tools);
     }
 
     /**
@@ -692,6 +688,27 @@ public class EntityViewService {
                 }
             }
 
+            // Handle Vavr collections
+            if (result instanceof Traversable<?> vavrCollection && !vavrCollection.isEmpty()) {
+                var first = vavrCollection.head();
+
+                // Vavr collection of EntityViews
+                if (first instanceof EntityView<?>) {
+                    var summaries = vavrCollection
+                            .map(e -> ((EntityView<?>) e).summary())
+                            .toJavaList();
+                    return toJsonResult(summaries);
+                }
+
+                // Vavr collection of entities with registered views
+                if (entityViewService.hasViewFor(first.getClass())) {
+                    var summaries = vavrCollection
+                            .map(e -> entityViewService.viewOf(e).summary())
+                            .toJavaList();
+                    return toJsonResult(summaries);
+                }
+            }
+
             return toJsonResult(result);
         }
 
@@ -743,15 +760,18 @@ public class EntityViewService {
             var name = "find_" + entityClass.getSimpleName().toLowerCase();
             var desc = description + " Pass the ID to access tools for this " + entityClass.getSimpleName() + ".";
             var paramType = isNumericIdType() ? ParameterType.INTEGER : ParameterType.STRING;
+            var paramDesc = isNumericIdType()
+                    ? "The numeric database ID"
+                    : "The UUID shown as (id=...) in summaries. Do NOT use booking references or codes.";
 
             return Definition.create(name, desc, InputSchema.of(
-                    new Tool.Parameter("id", paramType, "The entity ID", true, null)
+                    new Tool.Parameter("id", paramType, paramDesc, true, null)
             ));
         }
 
         private boolean isNumericIdType() {
             return idType == Long.class || idType == long.class ||
-                   idType == Integer.class || idType == int.class;
+                    idType == Integer.class || idType == int.class;
         }
 
         @Override

@@ -21,9 +21,9 @@ import com.embabel.air.backend.Reservation;
 import com.embabel.air.backend.SkyPointsStatus;
 import com.embabel.springdata.EntityView;
 import com.embabel.springdata.EntityViewFor;
+import io.vavr.collection.List;
 
 import java.time.LocalDate;
-import java.util.List;
 
 /**
  * EntityView for Customer that exposes customer tools to the LLM.
@@ -38,18 +38,13 @@ public interface CustomerView extends EntityView<Customer> {
             @LlmTool.Param(description = "End date (YYYY-MM-DD), or omit for all reservations", required = false)
             LocalDate toDate
     ) {
-        return getEntity().getReservations().stream()
-                .filter(r -> {
-                    if (fromDate == null && toDate == null) {
-                        return true;
-                    }
-                    var d = r.getFlightSegments().getFirst().getDepartureDateTime().toLocalDate();
-                    if (fromDate != null && d.isBefore(fromDate)) {
-                        return false;
-                    }
-                    return toDate == null || !d.isAfter(toDate);
-                })
-                .toList();
+        return List.ofAll(getEntity().getReservations())
+                .filter(r -> fromDate == null || !departureDate(r).isBefore(fromDate))
+                .filter(r -> toDate == null || !departureDate(r).isAfter(toDate));
+    }
+
+    private static LocalDate departureDate(Reservation r) {
+        return r.getFlightSegments().getFirst().getDepartureDateTime().toLocalDate();
     }
 
     @LlmTool(description = "Get the customer's SkyPoints loyalty status")
@@ -77,6 +72,7 @@ public interface CustomerView extends EntityView<Customer> {
             sb.append("Email: ").append(customer.getEmail()).append("\n");
         }
         if (status != null) {
+            sb.append("SkyPoints Member ID: ").append(status.getMemberId()).append("\n");
             sb.append("SkyPoints Status: ").append(status.getLevel()).append("\n");
             sb.append("Points Balance: ").append(status.getPoints()).append("\n");
         }

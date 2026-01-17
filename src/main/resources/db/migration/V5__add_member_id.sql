@@ -1,0 +1,1 @@
+ALTER TABLE customer ADD COLUMN member_id VARCHAR(255);
