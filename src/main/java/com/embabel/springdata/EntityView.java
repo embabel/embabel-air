@@ -65,24 +65,8 @@ public interface EntityView<E> {
     }
 
     /**
-     * Create a view for a related entity.
-     *
-     * <p>This method is implemented by the framework proxy. It delegates to
-     * {@link EntityViewService#viewOf(Object)} to create views for related entities.
-     *
-     * @param entity The related entity to wrap
-     * @param <F>    The related entity type
-     * @return An EntityView for the related entity
-     * @throws UnsupportedOperationException if called outside a proxy context
-     * @throws IllegalArgumentException      if no EntityView is registered for the entity type
-     */
-    default <F> EntityView<F> toView(F entity) {
-        throw new UnsupportedOperationException(
-                "toView() must be called on a proxy created by EntityViewService.viewOf()");
-    }
-
-    /**
      * Return a short summary of the entity for LLM context.
+     * MUST include the id
      *
      * @return A concise description of the entity
      */

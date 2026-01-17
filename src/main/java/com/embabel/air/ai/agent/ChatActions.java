@@ -7,6 +7,7 @@ import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
 import com.embabel.air.backend.Customer;
+import com.embabel.air.backend.Reservation;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.UserMessage;
@@ -72,6 +73,7 @@ public class ChatActions {
                 .withId("ChatActions.respond")
                 .withReference(airlinePolicies)
                 .withReference(entityViewService.makeReference(customer))
+                .withTool(entityViewService.finderFor(Reservation.class))
                 .withTemplate("air")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties

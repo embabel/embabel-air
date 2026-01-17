@@ -381,6 +381,12 @@ public class EntityViewService {
                     ". Create an interface annotated with @EntityViewFor.");
         }
 
+        if (repositories.getRepositoryFor(entityClass).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No repository found for " + entityClass.getSimpleName() +
+                    ". Ensure a CrudRepository exists for this entity.");
+        }
+
         var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
 
         return new EntityFinderMatryoshkaTool<>(
@@ -704,6 +710,7 @@ public class EntityViewService {
     static class EntityFinderMatryoshkaTool<E> implements MatryoshkaTool {
 
         private final Class<E> entityClass;
+        private final Class<?> idType;
         private final java.util.function.Function<E, ? extends EntityView<E>> viewFactory;
         private final TransactionTemplate transactionTemplate;
         private final Repositories repositories;
@@ -723,6 +730,7 @@ public class EntityViewService {
                 ObjectMapper objectMapper,
                 EntityViewService entityViewService) {
             this.entityClass = entityClass;
+            this.idType = repositories.getEntityInformationFor(entityClass).getIdType();
             this.viewFactory = viewFactory;
             this.transactionTemplate = transactionTemplate;
             this.repositories = repositories;
@@ -734,10 +742,16 @@ public class EntityViewService {
         private Definition buildDefinition(Class<E> entityClass, String description) {
             var name = "find_" + entityClass.getSimpleName().toLowerCase();
             var desc = description + " Pass the ID to access tools for this " + entityClass.getSimpleName() + ".";
+            var paramType = isNumericIdType() ? ParameterType.INTEGER : ParameterType.STRING;
 
             return Definition.create(name, desc, InputSchema.of(
-                    new Tool.Parameter("id", ParameterType.INTEGER, "The entity ID", true, null)
+                    new Tool.Parameter("id", paramType, "The entity ID", true, null)
             ));
+        }
+
+        private boolean isNumericIdType() {
+            return idType == Long.class || idType == long.class ||
+                   idType == Integer.class || idType == int.class;
         }
 
         @Override
@@ -785,12 +799,16 @@ public class EntityViewService {
                     // Create tools from the view
                     currentInnerTools = entityViewService.createTools(view, (java.util.function.Function<E, EntityView<E>>) viewFactory);
 
-                    // Return summary and list of available tools
+                    // Return full text and list of available tools as JSON
                     var toolNames = currentInnerTools.stream()
                             .map(t -> t.getDefinition().getName())
                             .toList();
 
-                    return Result.text(view.summary() + "\n\nAvailable tools: " + String.join(", ", toolNames));
+                    var result = Map.of(
+                            "entity", view.fullText(),
+                            "availableTools", toolNames
+                    );
+                    return Result.text(objectMapper.writeValueAsString(result));
 
                 } catch (Exception e) {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -808,12 +826,21 @@ public class EntityViewService {
             try {
                 Map<String, Object> inputMap = objectMapper.readValue(input, Map.class);
                 var idValue = inputMap.get("id");
-                if (idValue instanceof Number n) {
-                    return n.longValue();
+                if (idValue == null) {
+                    return null;
                 }
-                if (idValue instanceof String s) {
-                    return Long.parseLong(s);
+
+                // Convert to the correct ID type
+                if (idType == String.class) {
+                    return idValue.toString();
                 }
+                if (idType == Long.class || idType == long.class) {
+                    return idValue instanceof Number n ? n.longValue() : Long.parseLong(idValue.toString());
+                }
+                if (idType == Integer.class || idType == int.class) {
+                    return idValue instanceof Number n ? n.intValue() : Integer.parseInt(idValue.toString());
+                }
+
                 return idValue;
             } catch (Exception e) {
                 return null;

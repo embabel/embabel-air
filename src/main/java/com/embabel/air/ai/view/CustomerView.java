@@ -13,9 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.air.backend;
+package com.embabel.air.ai.view;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.air.backend.Customer;
+import com.embabel.air.backend.Reservation;
+import com.embabel.air.backend.SkyPointsStatus;
 import com.embabel.springdata.EntityView;
 import com.embabel.springdata.EntityViewFor;
 
@@ -35,8 +38,7 @@ public interface CustomerView extends EntityView<Customer> {
             @LlmTool.Param(description = "End date (YYYY-MM-DD), or omit for all reservations", required = false)
             LocalDate toDate
     ) {
-        var reservations = getEntity().getReservations();
-        return reservations.stream()
+        return getEntity().getReservations().stream()
                 .filter(r -> {
                     if (fromDate == null && toDate == null) {
                         return true;

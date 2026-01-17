@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.air.backend;
+package com.embabel.air.ai.view;
 
+import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.air.backend.Reservation;
 import com.embabel.springdata.EntityView;
 import com.embabel.springdata.EntityViewFor;
 
@@ -27,12 +29,13 @@ public interface ReservationView extends EntityView<Reservation> {
     @Override
     default String summary() {
         var reservation = getEntity();
-        return "Reservation %s: %d flight segments, booked on %s, going from %s to %s".formatted(
+        return "Reservation %s (id=%s): %d flight segments, booked on %s, from %s to %s".formatted(
                 reservation.getBookingReference(),
+                reservation.getId(),
                 reservation.getFlightSegments().size(),
                 reservation.getCreatedAt().toString(),
                 reservation.getFlightSegments().getFirst().getDepartureAirportCode(),
-                reservation.getFlightSegments().getLast().getDepartureAirportCode()
+                reservation.getFlightSegments().getLast().getArrivalAirportCode()
         );
     }
 
@@ -42,7 +45,7 @@ public interface ReservationView extends EntityView<Reservation> {
         var sb = new StringBuilder();
         sb.append(summary()).append("\n");
         for (var segment : reservation.getFlightSegments()) {
-            sb.append("  Segment from %s to %s, departing at %s, arriving at %s\n".formatted(
+            sb.append("Segment from %s to %s, departing at %s, arriving at %s\n".formatted(
                     segment.getDepartureAirportCode(),
                     segment.getArrivalAirportCode(),
                     segment.getDepartureDateTime().toString(),
@@ -50,5 +53,15 @@ public interface ReservationView extends EntityView<Reservation> {
             ));
         }
         return sb.toString();
+    }
+
+    @LlmTool(description = "Check in for this reservation")
+    default String checkIn() {
+        var reservation = getEntity();
+        if (reservation.isCheckedIn()) {
+            return "Already checked in for reservation " + reservation.getBookingReference();
+        }
+        reservation.setCheckedIn(true);
+        return "Successfully checked in for reservation " + reservation.getBookingReference();
     }
 }
