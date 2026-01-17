@@ -11,7 +11,6 @@ embabel-air:
     model: gpt-4.1-mini
     temperature: 0.0
 
-
 embabel:
 
   models:
@@ -33,4 +32,10 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+
+
+logging:
+  level:
+    com.embabel.agent.spi.loop.support: DEBUG
+    com.embabel.agent.spi.support.springai: DEBUG
 

@@ -1,3 +1,14 @@
+![Java](https://img.shields.io/badge/java-%23ED8B00.svg?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring](https://img.shields.io/badge/spring-%236DB33F.svg?style=for-the-badge&logo=spring&logoColor=white)
+![Vaadin](https://img.shields.io/badge/Vaadin-00B4F0?style=for-the-badge&logo=Vaadin&logoColor=white)
+![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+
+<img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
+
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;
+
 # Embabel Air
 
 AI-powered airline assistant with chat interface.
@@ -28,7 +39,8 @@ To completely reset the database (wipe all data and re-run migrations):
 docker compose down -v && docker compose up -d
 ```
 
-The `-v` flag removes the Docker volume, deleting all data. On next startup, Flyway will re-run all migrations and the dev data seeder will recreate demo users and flights.
+The `-v` flag removes the Docker volume, deleting all data. On next startup, Flyway will re-run all migrations and the
+dev data seeder will recreate demo users and flights.
 
 ### Database Configuration
 
