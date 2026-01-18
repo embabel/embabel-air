@@ -19,6 +19,7 @@
     <properties>
         <java.version>21</java.version>
         <embabel-agent.version>0.3.3-SNAPSHOT</embabel-agent.version>
+        <embabel-rag-pgvector.version>0.1.0-SNAPSHOT</embabel-rag-pgvector.version>
         <vaadin.version>24.6.4</vaadin.version>
     </properties>
 
@@ -50,9 +51,9 @@
         </dependency>
 
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-rag-pgvector</artifactId>
-            <version>${embabel-agent.version}</version>
+            <groupId>com.embabel.rag</groupId>
+            <artifactId>embabel-rag-pgvector</artifactId>
+            <version>${embabel-rag-pgvector.version}</version>
         </dependency>
 
         <!-- Web and Vaadin -->
