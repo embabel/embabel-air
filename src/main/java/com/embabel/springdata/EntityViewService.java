@@ -16,14 +16,12 @@
 package com.embabel.springdata;
 
 import com.embabel.agent.api.annotation.LlmTool;
-import com.embabel.agent.api.common.LlmReference;
 import com.embabel.agent.api.tool.MatryoshkaTool;
 import com.embabel.agent.api.tool.Tool;
 import com.embabel.common.textio.template.NoSuchTemplateException;
 import com.embabel.common.textio.template.TemplateRenderer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vavr.collection.Traversable;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.embabel.agent.api.tool.ToolUtils.formatToolTree;
+import static com.embabel.agent.api.tool.Tools.formatToolTree;
 
 /**
  * Creates transactional tools from EntityView implementations.
@@ -203,7 +201,7 @@ public class EntityViewService {
 
         throw new IllegalArgumentException(
                 "Cannot infer entity class from " + viewInterface.getName() +
-                ". Ensure it extends EntityView<YourEntity> or specify entity explicitly in @LlmView.");
+                        ". Ensure it extends EntityView<YourEntity> or specify entity explicitly in @LlmView.");
     }
 
     private static Class<?> extractEntityClass(java.lang.reflect.Type type) {
@@ -253,7 +251,9 @@ public class EntityViewService {
         var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
 
         // Lazily create tools on first access
-        var toolsHolder = new Object() { List<Tool> tools = null; };
+        var toolsHolder = new Object() {
+            List<Tool> tools = null;
+        };
 
         return (EntityView<E>) Proxy.newProxyInstance(
                 viewInterface.getClassLoader(),

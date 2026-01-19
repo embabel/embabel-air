@@ -13,8 +13,10 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
  */
 @ConfigurationProperties(prefix = "embabel-air")
 public record AirProperties(
+        boolean showChatPrompts,
         @NestedConfigurationProperty LlmOptions chatLlm,
         @NestedConfigurationProperty ContentChunker.Config chunkerConfig
 ) {
 }
+
 

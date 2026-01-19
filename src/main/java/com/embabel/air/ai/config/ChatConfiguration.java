@@ -2,6 +2,7 @@ package com.embabel.air.ai.config;
 
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.Verbosity;
+import com.embabel.air.ai.AirProperties;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.agent.AgentProcessChatbot;
 import com.embabel.common.textio.template.TemplateRenderer;
@@ -18,10 +19,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ChatConfiguration {
 
     @Bean
-    Chatbot chatbot(AgentPlatform agentPlatform) {
+    Chatbot chatbot(AgentPlatform agentPlatform, AirProperties properties) {
         return AgentProcessChatbot.utilityFromPlatform(
                 agentPlatform,
-                new Verbosity().showPrompts()
+                new Verbosity().withShowPrompts(properties.showChatPrompts())
         );
     }
 

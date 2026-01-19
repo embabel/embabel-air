@@ -3,6 +3,7 @@ package com.embabel.air.ai.agent;
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.EmbabelComponent;
 import com.embabel.agent.api.common.ActionContext;
+import com.embabel.agent.api.tool.Tools;
 import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
@@ -73,11 +74,26 @@ public class ChatActions {
                 .withId("ChatActions.respond")
                 .withReference(airlinePolicies)
                 .withReference(entityViewService.viewOf(customer))
-                .withTools(entityViewService.findersFor(Reservation.class))
+                .withTool(
+                        Tools.replanAlways(entityViewService.finderFor(Reservation.class)))
                 .withTemplate("air")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties
                 ));
         context.sendMessage(conversation.addMessage(assistantMessage));
+    }
+
+    @Action(
+            canRerun = true,
+            trigger = Reservation.class
+    )
+    void respond2(
+            Conversation conversation,
+            Customer customer,
+            Reservation reservation,
+            ActionContext context) {
+        // TODO make this more convenient
+        // on ActionContext or Conversation
+        context.sendMessage(conversation.addMessage(new AssistantMessage("Fuck you")));
     }
 }
