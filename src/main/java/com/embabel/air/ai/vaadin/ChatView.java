@@ -28,9 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Vaadin-based chat view for the chatbot.
@@ -96,9 +96,6 @@ public class ChatView extends VerticalLayout {
         add(messagesScroller);
         setFlexGrow(1, messagesScroller);
 
-        // Restore previous messages if session exists
-        restorePreviousMessages();
-
         // Input section
         add(createInputSection());
 
@@ -111,7 +108,11 @@ public class ChatView extends VerticalLayout {
         getElement().appendChild(drawer.getElement());
 
         // Initialize session on attach (kicks off agent process and greeting)
-        addAttachListener(event -> initializeSession());
+        addAttachListener(event -> {
+            var ui = event.getUI();
+            restorePreviousMessages(ui);
+            initializeSession();
+        });
     }
 
     private void initializeSession() {
@@ -119,32 +120,18 @@ public class ChatView extends VerticalLayout {
         if (ui == null) return;
 
         var vaadinSession = VaadinSession.getCurrent();
-        if (vaadinSession.getAttribute("sessionData") != null) {
-            return; // Session already exists
+        var sessionKey = getSessionKey(ui);
+        if (vaadinSession.getAttribute(sessionKey) != null) {
+            return; // Session already exists for this UI
         }
 
-        // Create session and output channel on UI thread
-        var responseQueue = new ArrayBlockingQueue<Message>(10);
-        var outputChannel = new VaadinOutputChannel(responseQueue, ui);
+        // Create session with output channel that directly updates UI
+        var outputChannel = new VaadinOutputChannel(ui);
         var chatSession = chatbot.createSession(currentUser, outputChannel, UUID.randomUUID().toString());
-        var sessionData = new SessionData(chatSession, responseQueue);
-        vaadinSession.setAttribute("sessionData", sessionData);
-        logger.info("Created new chat session");
-
-        // Wait for greeting in background thread
-        new Thread(() -> {
-            try {
-                var greeting = responseQueue.poll(5, TimeUnit.SECONDS);
-                if (greeting != null) {
-                    ui.access(() -> {
-                        messagesLayout.add(ChatMessageBubble.assistant(persona, greeting.getContent()));
-                        scrollToBottom();
-                    });
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }).start();
+        var sessionData = new SessionData(chatSession, outputChannel);
+        vaadinSession.setAttribute(sessionKey, sessionData);
+        logger.info("Created new chat session for UI {}", ui.getUIId());
+        // Greeting will be displayed automatically when it arrives via the output channel
     }
 
     private void refreshFooter() {
@@ -153,20 +140,28 @@ public class ChatView extends VerticalLayout {
         add(footer);
     }
 
-    private record SessionData(ChatSession chatSession, BlockingQueue<Message> responseQueue) {
+    private record SessionData(ChatSession chatSession, VaadinOutputChannel outputChannel) {
+    }
+
+    /**
+     * Get the session attribute key for this UI instance.
+     * Each browser tab (UI) gets its own chat session to prevent cross-talk.
+     */
+    private String getSessionKey(UI ui) {
+        return "sessionData-" + ui.getUIId();
     }
 
     private SessionData getOrCreateSession(UI ui) {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionData = (SessionData) vaadinSession.getAttribute("sessionData");
+        var sessionKey = getSessionKey(ui);
+        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
 
         if (sessionData == null) {
-            var responseQueue = new ArrayBlockingQueue<Message>(10);
-            var outputChannel = new VaadinOutputChannel(responseQueue, ui);
+            var outputChannel = new VaadinOutputChannel(ui);
             var chatSession = chatbot.createSession(currentUser, outputChannel, UUID.randomUUID().toString());
-            sessionData = new SessionData(chatSession, responseQueue);
-            vaadinSession.setAttribute("sessionData", sessionData);
-            logger.info("Created new chat session");
+            sessionData = new SessionData(chatSession, outputChannel);
+            vaadinSession.setAttribute(sessionKey, sessionData);
+            logger.info("Created new chat session for UI {}", ui.getUIId());
         }
 
         return sessionData;
@@ -213,28 +208,27 @@ public class ChatView extends VerticalLayout {
 
         var sessionData = getOrCreateSession(ui);
 
+        // Set up a future to wait for the response
+        var responseFuture = new CompletableFuture<Void>();
+        sessionData.outputChannel().expectResponse(responseFuture);
+
         new Thread(() -> {
             try {
                 var userMessage = new UserMessage(text);
                 logger.info("Sending user message: {}", text);
                 sessionData.chatSession().onUserMessage(userMessage);
 
-                var response = sessionData.responseQueue().poll(60, TimeUnit.SECONDS);
+                // Wait for response (the output channel will complete the future and update UI)
+                responseFuture.get(60, TimeUnit.SECONDS);
 
                 ui.access(() -> {
-                    if (response != null) {
-                        var content = response.getContent();
-                        messagesLayout.add(ChatMessageBubble.assistant(persona, content));
-                    } else {
-                        messagesLayout.add(ChatMessageBubble.error("Response timed out"));
-                    }
-                    scrollToBottom();
                     inputField.setEnabled(true);
                     sendButton.setEnabled(true);
                     inputField.focus();
                 });
             } catch (Exception e) {
                 logger.error("Error getting chatbot response", e);
+                sessionData.outputChannel().clearExpectedResponse();
                 ui.access(() -> {
                     messagesLayout.add(ChatMessageBubble.error("Error: " + e.getMessage()));
                     scrollToBottom();
@@ -249,9 +243,10 @@ public class ChatView extends VerticalLayout {
         messagesScroller.getElement().executeJs("this.scrollTop = this.scrollHeight");
     }
 
-    private void restorePreviousMessages() {
+    private void restorePreviousMessages(UI ui) {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionData = (SessionData) vaadinSession.getAttribute("sessionData");
+        var sessionKey = getSessionKey(ui);
+        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
         if (sessionData == null) {
             return;
         }
@@ -271,31 +266,53 @@ public class ChatView extends VerticalLayout {
     }
 
     /**
-     * Output channel that queues messages and displays tool calls in real-time.
+     * Output channel that directly displays messages in the UI.
+     * Uses CompletableFuture to signal when a response to a user message has been received.
      */
     private class VaadinOutputChannel implements OutputChannel {
-        private final BlockingQueue<Message> queue;
         private final UI ui;
-        private Div currentToolCallIndicator;
+        private final AtomicReference<CompletableFuture<Void>> pendingResponse = new AtomicReference<>();
+        private volatile Div currentToolCallIndicator;
 
-        VaadinOutputChannel(BlockingQueue<Message> queue, UI ui) {
-            this.queue = queue;
+        VaadinOutputChannel(UI ui) {
             this.ui = ui;
+        }
+
+        /**
+         * Set a future that will be completed when the next assistant message arrives.
+         */
+        void expectResponse(CompletableFuture<Void> future) {
+            pendingResponse.set(future);
+        }
+
+        /**
+         * Clear the pending response future (e.g., on timeout or error).
+         */
+        void clearExpectedResponse() {
+            pendingResponse.set(null);
         }
 
         @Override
         public void send(OutputChannelEvent event) {
             if (event instanceof MessageOutputChannelEvent msgEvent) {
                 var msg = msgEvent.getMessage();
-                if (msg instanceof AssistantMessage) {
-                    // Remove tool call indicator before showing response
+                if (msg instanceof AssistantMessage assistantMsg) {
                     ui.access(() -> {
+                        // Remove tool call indicator before showing response
                         if (currentToolCallIndicator != null) {
                             messagesLayout.remove(currentToolCallIndicator);
                             currentToolCallIndicator = null;
                         }
+                        // Add the message to the UI
+                        messagesLayout.add(ChatMessageBubble.assistant(persona, assistantMsg.getContent()));
+                        scrollToBottom();
                     });
-                    queue.offer(msg);
+
+                    // Signal that we received a response
+                    var future = pendingResponse.getAndSet(null);
+                    if (future != null) {
+                        future.complete(null);
+                    }
                 }
             } else if (event instanceof ProgressOutputChannelEvent progressEvent) {
                 ui.access(() -> {
