@@ -41,8 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.embabel.agent.api.tool.Tools.formatToolTree;
-
 /**
  * Creates transactional tools from EntityView implementations.
  *
@@ -535,7 +533,7 @@ public class EntityViewService {
             }
         }
 
-        logger.info(formatToolTree(viewName, tools));
+        logger.info(Tool.formatToolTree(viewName, tools));
         return tools;
     }
 
@@ -890,8 +888,7 @@ public class EntityViewService {
                             "entity", view.fullText(),
                             "availableTools", toolNames
                     );
-                    return Result.text(objectMapper.writeValueAsString(result));
-
+                    return Result.withArtifact(objectMapper.writeValueAsString(result), view);
                 } catch (Exception e) {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     return Result.error(cause.getMessage(), cause);

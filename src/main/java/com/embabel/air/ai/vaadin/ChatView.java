@@ -218,8 +218,22 @@ public class ChatView extends VerticalLayout {
                 logger.info("Sending user message: {}", text);
                 sessionData.chatSession().onUserMessage(userMessage);
 
-                // Wait for response (the output channel will complete the future and update UI)
-                responseFuture.get(60, TimeUnit.SECONDS);
+                // onUserMessage is synchronous - by the time it returns, any response
+                // should have been sent through the output channel. If not, complete
+                // the future anyway to avoid hanging.
+                if (!responseFuture.isDone()) {
+                    logger.warn("No response received from chatbot for message: {}", text);
+                    responseFuture.complete(null);
+                    ui.access(() -> {
+                        // Remove any pending tool call indicator
+                        if (sessionData.outputChannel().currentToolCallIndicator != null) {
+                            messagesLayout.remove(sessionData.outputChannel().currentToolCallIndicator);
+                            sessionData.outputChannel().currentToolCallIndicator = null;
+                        }
+                        messagesLayout.add(ChatMessageBubble.error("No response received. Please try again."));
+                        scrollToBottom();
+                    });
+                }
 
                 ui.access(() -> {
                     inputField.setEnabled(true);
@@ -272,7 +286,7 @@ public class ChatView extends VerticalLayout {
     private class VaadinOutputChannel implements OutputChannel {
         private final UI ui;
         private final AtomicReference<CompletableFuture<Void>> pendingResponse = new AtomicReference<>();
-        private volatile Div currentToolCallIndicator;
+        volatile Div currentToolCallIndicator; // package-private for access from sendMessage
 
         VaadinOutputChannel(UI ui) {
             this.ui = ui;

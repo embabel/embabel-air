@@ -2,11 +2,13 @@ package com.embabel.air.ai.agent;
 
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.EmbabelComponent;
+import com.embabel.agent.api.annotation.State;
 import com.embabel.agent.api.common.ActionContext;
-import com.embabel.agent.api.tool.Tools;
+import com.embabel.agent.api.tool.Tool;
 import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
+import com.embabel.air.ai.view.ReservationView;
 import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.Reservation;
 import com.embabel.chat.AssistantMessage;
@@ -42,58 +44,103 @@ public class ChatActions {
         this.properties = properties;
     }
 
+    @State
+    interface AirState {
+        // marker interface for process state
+    }
+
     /**
-     * Bind Customer to AgentProcess. Will run once at the start of the process.
+     * Bind Customer to AgentProcess and greet. Runs once at the start.
+     * The hasRun_ condition automatically prevents this from running again
+     * (since canRerun defaults to false).
      */
     @Action
-    Customer greetCustomer(
+    ChitchatState greetCustomer(
             Conversation conversation,
             ActionContext context) {
         var forUser = context.getProcessContext().getProcessOptions().getIdentities().getForUser();
         if (forUser instanceof Customer customer) {
             context.sendMessage(conversation.addMessage(
                     new AssistantMessage("Hi %s! How can I assist you today?".formatted(customer.getDisplayName()))));
-            return customer;
+            context.bindProtected("customer", customer);
+        } else {
+            logger.warn("greetCustomer: forUser is not a Customer: {}", forUser);
+        }
+        return new ChitchatState(properties, airlinePolicies, entityViewService);
+    }
+
+    @State
+    static class ChitchatState implements AirState {
+
+        private final AirProperties properties;
+        private final ToolishRag airlinePolicies;
+        private final EntityViewService entityViewService;
+
+        ChitchatState(AirProperties properties, ToolishRag airlinePolicies, EntityViewService entityViewService) {
+            this.properties = properties;
+            this.airlinePolicies = airlinePolicies;
+            this.entityViewService = entityViewService;
         }
 
-        logger.warn("bindUser: forUser is not an AirUser: {}", forUser);
-        return null;
+        @Action(
+                trigger = UserMessage.class,
+                canRerun = true
+        )
+        AirState respond(
+                Conversation conversation,
+                Customer customer,
+                ActionContext context) {
+            var assistantMessage = context.
+                    ai()
+                    .withLlm(properties.chatLlm())
+                    .withId("chitchat.respond")
+                    .withReference(airlinePolicies)
+                    .withReference(entityViewService.viewOf(customer))
+                    .withTool(
+                            Tool.replanAndAdd(
+                                    entityViewService.finderFor(Reservation.class),
+                                    ManageReservationState::new
+                            ))
+                    .withTemplate("air")
+                    .respondWithSystemPrompt(
+                            conversation,
+                            Map.of(
+                                    "properties", properties
+                            ));
+            context.sendAndSave(assistantMessage);
+            return this;
+        }
     }
 
-    @Action(
-            canRerun = true,
-            trigger = UserMessage.class
-    )
-    void respond(
-            Conversation conversation,
-            Customer customer,
-            ActionContext context) {
-        var assistantMessage = context.
-                ai()
-                .withLlm(properties.chatLlm())
-                .withId("ChatActions.respond")
-                .withReference(airlinePolicies)
-                .withReference(entityViewService.viewOf(customer))
-                .withTool(
-                        Tools.replanAlways(entityViewService.finderFor(Reservation.class)))
-                .withTemplate("air")
-                .respondWithSystemPrompt(conversation, Map.of(
-                        "properties", properties
-                ));
-        context.sendMessage(conversation.addMessage(assistantMessage));
-    }
+    static class ManageReservationState implements AirState {
 
-    @Action(
-            canRerun = true,
-            trigger = Reservation.class
-    )
-    void respond2(
-            Conversation conversation,
-            Customer customer,
-            Reservation reservation,
-            ActionContext context) {
-        // TODO make this more convenient
-        // on ActionContext or Conversation
-        context.sendMessage(conversation.addMessage(new AssistantMessage("Fuck you")));
+        private final ReservationView reservation;
+
+        public ManageReservationState(ReservationView reservation) {
+            this.reservation = reservation;
+        }
+
+        // TODO need exit tool
+
+        @Action
+        AirState init(
+                Conversation conversation,
+                Customer customer,
+                ActionContext context) {
+            context.sendAndSave(new AssistantMessage("I found your reservation: " + reservation.getDescription()));
+            return this;
+        }
+
+
+        @Action(
+                trigger = UserMessage.class,
+                canRerun = true)
+        AirState respond(
+                Conversation conversation,
+                Customer customer,
+                ActionContext context) {
+            context.sendMessage(conversation.addMessage(new AssistantMessage("Working on  your reservation: " + reservation.getDescription())));
+            return this;
+        }
     }
 }
