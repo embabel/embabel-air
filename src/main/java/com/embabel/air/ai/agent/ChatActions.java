@@ -2,6 +2,7 @@ package com.embabel.air.ai.agent;
 
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.EmbabelComponent;
+import com.embabel.agent.api.annotation.Provided;
 import com.embabel.agent.api.annotation.State;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.tool.Tool;
@@ -29,19 +30,12 @@ public class ChatActions {
     private final Logger logger = LoggerFactory.getLogger(ChatActions.class);
 
     private final ToolishRag airlinePolicies;
-    private final AirProperties properties;
-    private final EntityViewService entityViewService;
 
-    public ChatActions(
-            SearchOperations searchOperations,
-            EntityViewService entityViewService,
-            AirProperties properties) {
+    public ChatActions(SearchOperations searchOperations) {
         this.airlinePolicies = new ToolishRag(
                 "policies",
                 "Embabel policies",
                 searchOperations);
-        this.entityViewService = entityViewService;
-        this.properties = properties;
     }
 
     @State
@@ -57,7 +51,8 @@ public class ChatActions {
     @Action
     ChitchatState greetCustomer(
             Conversation conversation,
-            ActionContext context) {
+            ActionContext context,
+            @Provided AirProperties properties) {
         var forUser = context.getProcessContext().getProcessOptions().getIdentities().getForUser();
         if (forUser instanceof Customer customer) {
             context.sendMessage(conversation.addMessage(
@@ -66,21 +61,14 @@ public class ChatActions {
         } else {
             logger.warn("greetCustomer: forUser is not a Customer: {}", forUser);
         }
-        return new ChitchatState(properties, airlinePolicies, entityViewService);
+        return new ChitchatState(properties, airlinePolicies);
     }
 
     @State
-    static class ChitchatState implements AirState {
-
-        private final AirProperties properties;
-        private final ToolishRag airlinePolicies;
-        private final EntityViewService entityViewService;
-
-        ChitchatState(AirProperties properties, ToolishRag airlinePolicies, EntityViewService entityViewService) {
-            this.properties = properties;
-            this.airlinePolicies = airlinePolicies;
-            this.entityViewService = entityViewService;
-        }
+    record ChitchatState(
+            AirProperties properties,
+            ToolishRag airlinePolicies
+    ) implements AirState {
 
         @Action(
                 trigger = UserMessage.class,
@@ -89,7 +77,8 @@ public class ChatActions {
         AirState respond(
                 Conversation conversation,
                 Customer customer,
-                ActionContext context) {
+                ActionContext context,
+                @Provided EntityViewService entityViewService) {
             var assistantMessage = context.
                     ai()
                     .withLlm(properties.chatLlm())
@@ -112,13 +101,9 @@ public class ChatActions {
         }
     }
 
-    static class ManageReservationState implements AirState {
-
-        private final ReservationView reservation;
-
-        public ManageReservationState(ReservationView reservation) {
-            this.reservation = reservation;
-        }
+    record ManageReservationState(
+            ReservationView reservation
+    ) implements AirState {
 
         // TODO need exit tool
 
