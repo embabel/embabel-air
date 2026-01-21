@@ -128,7 +128,10 @@ public class ChatActions {
                     .withReference(airlinePolicies.rag())
                     .withReference(entityViewService.viewOf(customer))
                     .withTool(
-                            returnToChitchatTool("Exit reservation management and return to general chat"))
+                            returnToChitchatTool("""
+                                    YOU MUST CALL THIS TOOL immediately
+                                    if the user isn't directly discussing reservation %s.
+                                    """.formatted(reservation.getBookingReference())))
                     .withTemplate("reservation")
                     .respondWithSystemPrompt(
                             conversation,
