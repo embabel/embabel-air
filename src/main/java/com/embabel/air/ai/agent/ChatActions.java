@@ -13,10 +13,10 @@ import com.embabel.chat.Conversation;
 import com.embabel.chat.Message;
 import com.embabel.chat.SystemMessage;
 import com.embabel.springdata.EntityViewService;
-import io.vavr.collection.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,7 +25,7 @@ import java.util.Map;
 @EmbabelComponent
 public class ChatActions {
 
-    private final Logger logger = LoggerFactory.getLogger(ChatActions.class);
+    private final static Logger logger = LoggerFactory.getLogger(ChatActions.class);
 
 
     /**
@@ -88,7 +88,7 @@ public class ChatActions {
                     .withAutoLlm()
                     .creating(OnTopic.class)
                     .fromMessages(
-                            List.<Message>of(new SystemMessage("""
+                            io.vavr.collection.List.<Message>of(new SystemMessage("""
                                             Are we still on topic with the purpose of '%s'?
                                             """.formatted(purpose())))
                                     .appendAll(conversation.getMessages())
@@ -145,6 +145,7 @@ public class ChatActions {
                     .withId("chitchat.respond")
                     .withReference(airlinePolicies.rag())
                     .withReference(entityViewService.viewOf(customer))
+                    .withTools(commonTools())
                     .withTool(
                             Tool.replanAndAdd(
                                     entityViewService.finderFor(Reservation.class),
@@ -196,6 +197,7 @@ public class ChatActions {
                     .withId("manage_reservation.respond")
                     .withReference(airlinePolicies.rag())
                     .withReference(entityViewService.viewOf(customer))
+                    .withTools(commonTools())
                     .withTemplate("reservation")
                     .respondWithSystemPrompt(
                             conversation,
@@ -206,5 +208,43 @@ public class ChatActions {
             context.sendAndSave(assistantMessage);
             return this;
         }
+    }
+
+    static class EscalationState implements AirState {
+
+        @Action
+        void escalate(
+                Conversation conversation,
+                Customer customer,
+                ActionContext context) {
+            context.sendAndSave(new AssistantMessage("""
+                    You're important to us and I'll get one
+                    of my human colleagues to assist you right away.
+                    """));
+        }
+    }
+
+    /**
+     * Tool to exit the current state
+     */
+    private static Tool escalationTool() {
+        var description = """
+                Escalate the current conversation to a human agent.
+                YOU MUST INVOKE THIS TOOL
+                when you are unable to assist the customer
+                or when the customer determinedly requests human assistance
+                rather than responding directly
+                """;
+        var rawTool = Tool.create("escalate", description, input -> Tool.Result.withArtifact("Escalating to human agent", Boolean.TRUE));
+        return Tool.replanAndAdd(rawTool, r -> {
+            logger.info("Escalation tool invoked, transitioning to EscalationState");
+            return new EscalationState();
+        });
+    }
+
+    private static List<Tool> commonTools() {
+        return List.of(
+                escalationTool()
+        );
     }
 }
