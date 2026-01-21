@@ -15,6 +15,7 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 public record AirProperties(
         boolean showChatPrompts,
         @NestedConfigurationProperty LlmOptions chatLlm,
+        @NestedConfigurationProperty LlmOptions triageLlm,
         @NestedConfigurationProperty ContentChunker.Config chunkerConfig
 ) {
 }

@@ -85,7 +85,7 @@ public class ChatActions {
                 @Provided EntityViewService entityViewService) {
             var onTopic = context.
                     ai()
-                    .withAutoLlm()
+                    .withLlm(properties.triageLlm())
                     .creating(OnTopic.class)
                     .fromMessages(
                             io.vavr.collection.List.<Message>of(new SystemMessage("""
