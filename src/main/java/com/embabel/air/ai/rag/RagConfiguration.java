@@ -17,7 +17,7 @@ import javax.sql.DataSource;
 
 @Configuration
 @EnableConfigurationProperties(AirProperties.class)
-class RagConfiguration {
+public class RagConfiguration {
 
     private final Logger logger = LoggerFactory.getLogger(RagConfiguration.class);
 
@@ -38,12 +38,14 @@ class RagConfiguration {
     }
 
     @Bean
-    ToolishRag airlinePolicies(
-            SearchOperations searchOperations) {
-        return new ToolishRag(
-                "policies",
-                "Embabel policies",
-                searchOperations);
+    AirlinePolicies airlinePolicies(SearchOperations searchOperations) {
+        return new AirlinePolicies(new ToolishRag("policies", "Embabel Air policies", searchOperations));
+    }
+
+    /**
+     * Typed wrapper for airline policies ToolishRag - enables clean injection via @Provided.
+     */
+    public record AirlinePolicies(ToolishRag rag) {
     }
 
 }

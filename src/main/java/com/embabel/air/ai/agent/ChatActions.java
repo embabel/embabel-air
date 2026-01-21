@@ -6,7 +6,7 @@ import com.embabel.agent.api.annotation.Provided;
 import com.embabel.agent.api.annotation.State;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.tool.Tool;
-import com.embabel.agent.rag.tools.ToolishRag;
+import com.embabel.air.ai.rag.RagConfiguration.AirlinePolicies;
 import com.embabel.air.ai.AirProperties;
 import com.embabel.air.ai.view.ReservationView;
 import com.embabel.air.backend.Customer;
@@ -45,7 +45,7 @@ public class ChatActions {
     ChitchatState greetCustomer(
             Conversation conversation,
             ActionContext context,
-            @Provided ToolishRag airlinePolicies) {
+            @Provided AirlinePolicies airlinePolicies) {
         var forUser = context.getProcessContext().getProcessOptions().getIdentities().getForUser();
         if (forUser instanceof Customer customer) {
             context.sendMessage(conversation.addMessage(
@@ -59,7 +59,7 @@ public class ChatActions {
 
     @State
     record ChitchatState(
-            ToolishRag airlinePolicies
+            AirlinePolicies airlinePolicies
     ) implements AirState {
 
         @Action(
@@ -76,7 +76,7 @@ public class ChatActions {
                     ai()
                     .withLlm(properties.chatLlm())
                     .withId("chitchat.respond")
-                    .withReference(airlinePolicies)
+                    .withReference(airlinePolicies.rag())
                     .withReference(entityViewService.viewOf(customer))
                     .withTool(
                             Tool.replanAndAdd(
