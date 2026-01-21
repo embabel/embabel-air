@@ -1,9 +1,6 @@
 package com.embabel.air.ai.agent;
 
-import com.embabel.agent.api.annotation.Action;
-import com.embabel.agent.api.annotation.EmbabelComponent;
-import com.embabel.agent.api.annotation.Provided;
-import com.embabel.agent.api.annotation.State;
+import com.embabel.agent.api.annotation.*;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.tool.Tool;
 import com.embabel.air.ai.AirProperties;
@@ -13,8 +10,10 @@ import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.Reservation;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
-import com.embabel.chat.UserMessage;
+import com.embabel.chat.Message;
+import com.embabel.chat.SystemMessage;
 import com.embabel.springdata.EntityViewService;
+import io.vavr.collection.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,10 +29,76 @@ public class ChatActions {
 
 
     /**
+     * Condition: true if the last message in the conversation is from the user,
+     * meaning we need to respond.
+     */
+    @Condition
+    static boolean shouldRespond(Conversation conversation) {
+        return conversation.lastMessageIfBeFromUser() != null;
+    }
+
+    /**
      * Marker interface for process state
      */
     @State
     interface AirState {
+    }
+
+    /**
+     * A substate performs triage to determine if we are still on topic
+     * before doing anything else.
+     */
+    interface SubState extends AirState {
+
+        String purpose();
+
+        record OnTopic(
+                boolean isOnTopic,
+                String reason) {
+        }
+
+        /**
+         * Respond method to be implemented by each SubState.
+         */
+        AirState respond(
+                Conversation conversation,
+                Customer customer,
+                ActionContext context,
+                AirProperties properties,
+                AirlinePolicies airlinePolicies,
+                EntityViewService entityViewService);
+
+        /**
+         * Triage action: check if we are still on topic before responding.
+         * If on-topic, delegates to respond(). If off-topic, transitions to ChitchatState.
+         */
+        @Action(
+                pre = "shouldRespond",
+                canRerun = true
+        )
+        default AirState triage(
+                Conversation conversation,
+                Customer customer,
+                ActionContext context,
+                @Provided AirProperties properties,
+                @Provided AirlinePolicies airlinePolicies,
+                @Provided EntityViewService entityViewService) {
+            var onTopic = context.
+                    ai()
+                    .withAutoLlm()
+                    .creating(OnTopic.class)
+                    .fromMessages(
+                            List.<Message>of(new SystemMessage("""
+                                            Are we still on topic with the purpose of '%s'?
+                                            """.formatted(purpose())))
+                                    .appendAll(conversation.getMessages())
+                                    .asJava());
+            if (onTopic.isOnTopic()) {
+                return respond(conversation, customer, context, properties, airlinePolicies, entityViewService);
+            }
+            return new ChitchatState();
+        }
+
     }
 
     /**
@@ -64,7 +129,7 @@ public class ChatActions {
     static class ChitchatState implements AirState {
 
         @Action(
-                trigger = UserMessage.class,
+                pre = "shouldRespond",
                 canRerun = true
         )
         AirState respond(
@@ -98,7 +163,13 @@ public class ChatActions {
 
     record ManageReservationState(
             ReservationView reservation
-    ) implements AirState {
+    ) implements SubState {
+
+        @Override
+        public String purpose() {
+            return "Help the customer manage their reservation %s".formatted(
+                    reservation.fullText());
+        }
 
         @Action
         AirState note(
@@ -111,27 +182,20 @@ public class ChatActions {
             return this;
         }
 
-        @Action(
-                trigger = UserMessage.class,
-                canRerun = true)
-        AirState manage(
+        @Override
+        public AirState respond(
                 Conversation conversation,
                 Customer customer,
                 ActionContext context,
-                @Provided AirProperties properties,
-                @Provided AirlinePolicies airlinePolicies,
-                @Provided EntityViewService entityViewService) {
+                AirProperties properties,
+                AirlinePolicies airlinePolicies,
+                EntityViewService entityViewService) {
             var assistantMessage = context.
                     ai()
                     .withLlm(properties.chatLlm())
                     .withId("manage_reservation.respond")
                     .withReference(airlinePolicies.rag())
                     .withReference(entityViewService.viewOf(customer))
-                    .withTool(
-                            returnToChitchatTool("""
-                                    YOU MUST CALL THIS TOOL immediately
-                                    if the user isn't directly discussing reservation %s.
-                                    """.formatted(reservation.getBookingReference())))
                     .withTemplate("reservation")
                     .respondWithSystemPrompt(
                             conversation,
@@ -142,13 +206,5 @@ public class ChatActions {
             context.sendAndSave(assistantMessage);
             return this;
         }
-    }
-
-    /**
-     * Tool to exit the current state
-     */
-    private static Tool returnToChitchatTool(String description) {
-        var rawTool = Tool.create("exit_flow", description, input -> Tool.Result.text("done"));
-        return Tool.replanAndAdd(rawTool, r -> new ChitchatState());
     }
 }
