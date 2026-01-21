@@ -88,10 +88,11 @@ public class ChatActions {
                     .withLlm(properties.triageLlm())
                     .creating(OnTopic.class)
                     .fromMessages(
-                            io.vavr.collection.List.<Message>of(new SystemMessage("""
-                                            Are we still on topic with the purpose of '%s'?
-                                            """.formatted(purpose())))
-                                    .appendAll(conversation.getMessages())
+                            io.vavr.collection.List.<Message>of(
+                                            new SystemMessage("""
+                                                    Are we still on topic with the purpose of '%s'?
+                                                    """.formatted(purpose())))
+                                    .appendAll(conversation.last(7).getMessages())
                                     .asJava());
             if (onTopic.isOnTopic()) {
                 return respond(conversation, customer, context, properties, airlinePolicies, entityViewService);
