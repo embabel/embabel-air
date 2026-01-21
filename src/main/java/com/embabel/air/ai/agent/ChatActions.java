@@ -6,8 +6,8 @@ import com.embabel.agent.api.annotation.Provided;
 import com.embabel.agent.api.annotation.State;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.tool.Tool;
-import com.embabel.air.ai.rag.RagConfiguration.AirlinePolicies;
 import com.embabel.air.ai.AirProperties;
+import com.embabel.air.ai.rag.RagConfiguration.AirlinePolicies;
 import com.embabel.air.ai.view.ReservationView;
 import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.Reservation;
@@ -54,13 +54,14 @@ public class ChatActions {
         } else {
             logger.warn("greetCustomer: forUser is not a Customer: {}", forUser);
         }
-        return new ChitchatState(airlinePolicies);
+        return new ChitchatState();
     }
 
+    /**
+     * State for General chat, nothing specific
+     */
     @State
-    record ChitchatState(
-            AirlinePolicies airlinePolicies
-    ) implements AirState {
+    static class ChitchatState implements AirState {
 
         @Action(
                 trigger = UserMessage.class,
@@ -71,6 +72,7 @@ public class ChatActions {
                 Customer customer,
                 ActionContext context,
                 @Provided AirProperties properties,
+                @Provided AirlinePolicies airlinePolicies,
                 @Provided EntityViewService entityViewService) {
             var assistantMessage = context.
                     ai()
@@ -103,7 +105,9 @@ public class ChatActions {
                 Conversation conversation,
                 Customer customer,
                 ActionContext context) {
-            context.sendAndSave(new AssistantMessage("I found your reservation: " + reservation.getDescription()));
+            context.sendAndSave(new AssistantMessage("""
+                    I found reservation %s for you. How can I help?
+                    """.formatted(reservation.getBookingReference())));
             return this;
         }
 
@@ -113,9 +117,35 @@ public class ChatActions {
         AirState manage(
                 Conversation conversation,
                 Customer customer,
-                ActionContext context) {
-            context.sendMessage(conversation.addMessage(new AssistantMessage("Working on  your reservation: " + reservation.getDescription())));
+                ActionContext context,
+                @Provided AirProperties properties,
+                @Provided AirlinePolicies airlinePolicies,
+                @Provided EntityViewService entityViewService) {
+            var assistantMessage = context.
+                    ai()
+                    .withLlm(properties.chatLlm())
+                    .withId("manage_reservation.respond")
+                    .withReference(airlinePolicies.rag())
+                    .withReference(entityViewService.viewOf(customer))
+                    .withTool(
+                            returnToChitchatTool("Exit reservation management and return to general chat"))
+                    .withTemplate("reservation")
+                    .respondWithSystemPrompt(
+                            conversation,
+                            Map.of(
+                                    "properties", properties,
+                                    "reservation", reservation
+                            ));
+            context.sendAndSave(assistantMessage);
             return this;
         }
+    }
+
+    /**
+     * Tool to exit the current state
+     */
+    private static Tool returnToChitchatTool(String description) {
+        var rawTool = Tool.create("exit_flow", description, input -> Tool.Result.text("done"));
+        return Tool.replanAndAdd(rawTool, r -> new ChitchatState());
     }
 }

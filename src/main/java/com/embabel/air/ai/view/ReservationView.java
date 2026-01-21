@@ -26,6 +26,10 @@ import com.embabel.springdata.LlmView;
 @LlmView
 public interface ReservationView extends EntityView<Reservation> {
 
+    default String getBookingReference() {
+        return getEntity().getBookingReference();
+    }
+
     @Override
     default String summary() {
         var reservation = getEntity();

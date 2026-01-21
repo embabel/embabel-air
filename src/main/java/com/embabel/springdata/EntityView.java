@@ -16,6 +16,7 @@
 package com.embabel.springdata;
 
 import com.embabel.agent.api.common.LlmReference;
+import org.jspecify.annotations.NonNull;
 
 /**
  * A view over an entity that exposes tools to the LLM.
@@ -52,7 +53,9 @@ public interface EntityView<E> extends LlmReference {
      */
     class UseDefaultStrategy extends RuntimeException {
         public static final UseDefaultStrategy INSTANCE = new UseDefaultStrategy();
-        private UseDefaultStrategy() {}
+
+        private UseDefaultStrategy() {
+        }
     }
 
     /**
@@ -91,7 +94,7 @@ public interface EntityView<E> extends LlmReference {
      * Provides the detailed entity content for the prompt.
      */
     @Override
-    default String notes() {
+    default @NonNull String notes() {
         return fullText();
     }
 
@@ -99,7 +102,7 @@ public interface EntityView<E> extends LlmReference {
      * LlmReference name - provided by the proxy based on entity class.
      */
     @Override
-    default String getName() {
+    default @NonNull String getName() {
         throw UseDefaultStrategy.INSTANCE;
     }
 
@@ -107,7 +110,7 @@ public interface EntityView<E> extends LlmReference {
      * LlmReference description - provided by the proxy from @LlmView or entity class name.
      */
     @Override
-    default String getDescription() {
+    default @NonNull String getDescription() {
         throw UseDefaultStrategy.INSTANCE;
     }
 }
