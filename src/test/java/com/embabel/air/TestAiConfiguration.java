@@ -13,8 +13,12 @@ import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -62,6 +66,16 @@ public class TestAiConfiguration {
                 "OpenAI",
                 new FakeEmbeddingModel(1536)
         );
+    }
+
+    /**
+     * Primary ObjectMapper to resolve conflict between embabelJacksonObjectMapper
+     * and hillaEndpointObjectMapper.
+     */
+    @Bean
+    @Primary
+    ObjectMapper primaryObjectMapper(Jackson2ObjectMapperBuilder builder) {
+        return builder.build();
     }
 
     /**
