@@ -6,7 +6,6 @@ import com.embabel.agent.api.annotation.Provided;
 import com.embabel.agent.api.annotation.State;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.tool.Tool;
-import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
 import com.embabel.air.ai.view.ReservationView;
@@ -29,18 +28,12 @@ public class ChatActions {
 
     private final Logger logger = LoggerFactory.getLogger(ChatActions.class);
 
-    private final ToolishRag airlinePolicies;
 
-    public ChatActions(SearchOperations searchOperations) {
-        this.airlinePolicies = new ToolishRag(
-                "policies",
-                "Embabel policies",
-                searchOperations);
-    }
-
+    /**
+     * Marker interface for process state
+     */
     @State
     interface AirState {
-        // marker interface for process state
     }
 
     /**
@@ -52,7 +45,7 @@ public class ChatActions {
     ChitchatState greetCustomer(
             Conversation conversation,
             ActionContext context,
-            @Provided AirProperties properties) {
+            @Provided ToolishRag airlinePolicies) {
         var forUser = context.getProcessContext().getProcessOptions().getIdentities().getForUser();
         if (forUser instanceof Customer customer) {
             context.sendMessage(conversation.addMessage(
@@ -61,12 +54,11 @@ public class ChatActions {
         } else {
             logger.warn("greetCustomer: forUser is not a Customer: {}", forUser);
         }
-        return new ChitchatState(properties, airlinePolicies);
+        return new ChitchatState(airlinePolicies);
     }
 
     @State
     record ChitchatState(
-            AirProperties properties,
             ToolishRag airlinePolicies
     ) implements AirState {
 
@@ -78,6 +70,7 @@ public class ChatActions {
                 Conversation conversation,
                 Customer customer,
                 ActionContext context,
+                @Provided AirProperties properties,
                 @Provided EntityViewService entityViewService) {
             var assistantMessage = context.
                     ai()
@@ -105,10 +98,8 @@ public class ChatActions {
             ReservationView reservation
     ) implements AirState {
 
-        // TODO need exit tool
-
         @Action
-        AirState init(
+        AirState note(
                 Conversation conversation,
                 Customer customer,
                 ActionContext context) {
@@ -116,11 +107,10 @@ public class ChatActions {
             return this;
         }
 
-
         @Action(
                 trigger = UserMessage.class,
                 canRerun = true)
-        AirState respond(
+        AirState manage(
                 Conversation conversation,
                 Customer customer,
                 ActionContext context) {

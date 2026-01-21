@@ -1,6 +1,6 @@
 package com.embabel.air.ai.vaadin;
 
-import com.embabel.air.ai.DocumentService;
+import com.embabel.air.ai.rag.DocumentService;
 import com.embabel.air.backend.Customer;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.ShortcutRegistration;

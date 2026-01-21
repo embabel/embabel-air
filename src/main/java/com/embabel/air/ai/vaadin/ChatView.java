@@ -5,10 +5,13 @@ import com.embabel.agent.api.channel.OutputChannel;
 import com.embabel.agent.api.channel.OutputChannelEvent;
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent;
 import com.embabel.air.ai.AirProperties;
-import com.embabel.air.ai.DocumentService;
+import com.embabel.air.ai.rag.DocumentService;
 import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.CustomerService;
-import com.embabel.chat.*;
+import com.embabel.chat.AssistantMessage;
+import com.embabel.chat.ChatSession;
+import com.embabel.chat.Chatbot;
+import com.embabel.chat.UserMessage;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -29,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**

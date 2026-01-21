@@ -1,11 +1,12 @@
-package com.embabel.air.ai.config;
+package com.embabel.air.ai.rag;
 
+import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer;
 import com.embabel.agent.rag.pgvector.PgVectorStore;
 import com.embabel.agent.rag.pgvector.PgVectorStoreBuilder;
+import com.embabel.agent.rag.service.SearchOperations;
+import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
-import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
-import com.embabel.common.ai.model.ModelProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,19 +23,27 @@ class RagConfiguration {
 
     @Bean
     PgVectorStore pgVectorStore(
-            ModelProvider modelProvider,
+            Ai ai,
             DataSource dataSource,
             AirProperties properties) {
-        var embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria.INSTANCE);
         var store = new PgVectorStoreBuilder()
                 .withName("docs")
                 .withDataSource(dataSource)
-                .withEmbeddingService(embeddingService)
+                .withEmbeddingService(ai.withDefaultEmbeddingService())
                 .withChunkerConfig(properties.chunkerConfig())
                 .withChunkTransformer(AddTitlesChunkTransformer.INSTANCE)
                 .build();
         logger.info("Loaded {} chunks into Lucene RAG store", store.info().getChunkCount());
         return store;
+    }
+
+    @Bean
+    ToolishRag airlinePolicies(
+            SearchOperations searchOperations) {
+        return new ToolishRag(
+                "policies",
+                "Embabel policies",
+                searchOperations);
     }
 
 }

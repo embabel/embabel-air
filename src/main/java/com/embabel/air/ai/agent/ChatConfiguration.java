@@ -1,4 +1,4 @@
-package com.embabel.air.ai.config;
+package com.embabel.air.ai.agent;
 
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.Verbosity;

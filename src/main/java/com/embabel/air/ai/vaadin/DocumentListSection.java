@@ -1,6 +1,6 @@
 package com.embabel.air.ai.vaadin;
 
-import com.embabel.air.ai.DocumentService;
+import com.embabel.air.ai.rag.DocumentService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
