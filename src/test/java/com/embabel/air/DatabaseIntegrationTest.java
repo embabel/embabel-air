@@ -14,7 +14,7 @@ import java.sql.SQLException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.ai.mcp.client.enabled=false")
 @Testcontainers
 @Import(TestAiConfiguration.class)
 class DatabaseIntegrationTest {

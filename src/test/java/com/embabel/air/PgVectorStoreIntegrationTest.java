@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests actual search functionality against the rebooking policy document
  * that is loaded on startup by DocumentLoader.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.ai.mcp.client.enabled=false")
 @Testcontainers
 @Import(TestAiConfiguration.class)
 class PgVectorStoreIntegrationTest {
