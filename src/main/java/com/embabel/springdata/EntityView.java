@@ -16,7 +16,10 @@
 package com.embabel.springdata;
 
 import com.embabel.agent.api.common.LlmReference;
+import com.embabel.chat.Asset;
 import org.jspecify.annotations.NonNull;
+
+import java.time.Instant;
 
 /**
  * A view over an entity that exposes tools to the LLM.
@@ -45,7 +48,24 @@ import org.jspecify.annotations.NonNull;
  *
  * @param <E> The entity type
  */
-public interface EntityView<E> extends LlmReference {
+public interface EntityView<E> extends LlmReference, Asset {
+
+    @Override
+    @NonNull
+    default LlmReference reference() {
+        return this;
+    }
+
+    @Override
+    default boolean persistent() {
+        return true;
+    }
+
+    @Override
+    @NonNull
+    default Instant getTimestamp() {
+        throw new UnsupportedOperationException("not sure how to implement this, it's when it was associated");
+    }
 
     /**
      * Marker exception thrown by default implementations to signal

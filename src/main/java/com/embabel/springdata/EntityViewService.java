@@ -331,18 +331,15 @@ public class EntityViewService {
                     }
 
                     // Handle Object methods
-                    if ("toString".equals(method.getName())) {
-                        return viewInterface.getSimpleName() + "[" + entity + "]";
-                    }
-                    if ("hashCode".equals(method.getName())) {
-                        return System.identityHashCode(proxy);
-                    }
-                    if ("equals".equals(method.getName())) {
-                        return proxy == args[0];
-                    }
+                    return switch (method.getName()) {
+                        case "toString" -> viewInterface.getSimpleName() + "[" + entity + "]";
+                        case "hashCode" -> System.identityHashCode(proxy);
+                        case "equals" -> proxy == args[0];
+                        case "getId" -> getEntityId(entity);
+                        default -> throw new UnsupportedOperationException(
+                                "Method " + method.getName() + " is not a default method on " + viewInterface.getSimpleName());
+                    };
 
-                    throw new UnsupportedOperationException(
-                            "Method " + method.getName() + " is not a default method on " + viewInterface.getSimpleName());
                 }
         );
     }
