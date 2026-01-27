@@ -64,7 +64,9 @@ public interface EntityView<E> extends LlmReference, Asset {
     @Override
     @NonNull
     default Instant getTimestamp() {
-        throw new UnsupportedOperationException("not sure how to implement this, it's when it was associated");
+        // TODO this isn't right, its when it was first added?
+        // See Asset doco
+        return Instant.now();
     }
 
     /**

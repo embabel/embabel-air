@@ -1,6 +1,7 @@
 package com.embabel.air.ai.rag;
 
 import com.embabel.agent.api.common.Ai;
+import com.embabel.agent.api.common.LlmReference;
 import com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer;
 import com.embabel.agent.rag.pgvector.PgVectorStore;
 import com.embabel.agent.rag.pgvector.PgVectorStoreBuilder;
@@ -39,13 +40,16 @@ public class RagConfiguration {
 
     @Bean
     AirlinePolicies airlinePolicies(SearchOperations searchOperations) {
-        return new AirlinePolicies(new ToolishRag("policies", "Embabel Air policies", searchOperations));
+        return new AirlinePolicies(
+                new ToolishRag("policies", "Embabel Air policies", searchOperations)
+                        .asMatryoshka()
+        );
     }
 
     /**
      * Typed wrapper for airline policies ToolishRag - enables clean injection via @Provided.
      */
-    public record AirlinePolicies(ToolishRag rag) {
+    public record AirlinePolicies(LlmReference reference) {
     }
 
 }

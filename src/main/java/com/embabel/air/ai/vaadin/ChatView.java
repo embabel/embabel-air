@@ -4,6 +4,7 @@ import com.embabel.agent.api.channel.MessageOutputChannelEvent;
 import com.embabel.agent.api.channel.OutputChannel;
 import com.embabel.agent.api.channel.OutputChannelEvent;
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent;
+import com.embabel.agent.core.AgentPlatform;
 import com.embabel.air.ai.AirProperties;
 import com.embabel.air.ai.rag.DocumentService;
 import com.embabel.air.backend.Customer;
@@ -49,19 +50,22 @@ public class ChatView extends VerticalLayout {
     private final AirProperties properties;
     private final DocumentService documentService;
     private final Customer currentUser;
+    private final AgentPlatform agentPlatform;
 
     private VerticalLayout messagesLayout;
     private Scroller messagesScroller;
     private TextField inputField;
     private Button sendButton;
     private Footer footer;
+    private SessionPanel sessionPanel;
 
     public ChatView(Chatbot chatbot, AirProperties properties, DocumentService documentService,
-                    CustomerService userService) {
+                    CustomerService userService, AgentPlatform agentPlatform) {
         this.chatbot = chatbot;
         this.properties = properties;
         this.documentService = documentService;
         this.currentUser = userService.getAuthenticatedUser();
+        this.agentPlatform = agentPlatform;
         this.persona = "Emmie";
 
         setSizeFull();
@@ -80,8 +84,8 @@ public class ChatView extends VerticalLayout {
         headerImage.addClassName("header-logo");
         headerImage.setHeight("60px");
 
-        // User section (right)
-        var userSection = new UserSection(currentUser);
+        // User section (right) - clicking opens session panel
+        var userSection = new UserSection(currentUser, this::openSessionPanel);
         headerRow.add(headerImage, userSection);
         add(headerRow);
 
@@ -109,12 +113,29 @@ public class ChatView extends VerticalLayout {
         var drawer = new DocumentsDrawer(documentService, currentUser, this::refreshFooter);
         getElement().appendChild(drawer.getElement());
 
+        // Session panel (opened by clicking user profile)
+        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform);
+        getElement().appendChild(sessionPanel.getElement());
+
         // Initialize session on attach (kicks off agent process and greeting)
         addAttachListener(event -> {
             var ui = event.getUI();
             restorePreviousMessages(ui);
             initializeSession();
         });
+    }
+
+    private void openSessionPanel() {
+        sessionPanel.open();
+    }
+
+    private ChatSession getCurrentSession() {
+        var ui = getUI().orElse(null);
+        if (ui == null) return null;
+        var vaadinSession = VaadinSession.getCurrent();
+        var sessionKey = getSessionKey(ui);
+        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        return sessionData != null ? sessionData.chatSession() : null;
     }
 
     private void initializeSession() {

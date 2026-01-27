@@ -13,7 +13,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
  */
 class UserSection extends HorizontalLayout {
 
-    UserSection(Customer user) {
+    UserSection(Customer user, Runnable onProfileClick) {
         setAlignItems(FlexComponent.Alignment.CENTER);
         setSpacing(true);
 
@@ -22,6 +22,7 @@ class UserSection extends HorizontalLayout {
         profileChip.addClassName("profile-chip");
         profileChip.setAlignItems(FlexComponent.Alignment.CENTER);
         profileChip.setSpacing(false);
+        profileChip.getStyle().set("cursor", "pointer");
 
         // Avatar with initials
         var initials = getInitials(user.getDisplayName());
@@ -33,6 +34,11 @@ class UserSection extends HorizontalLayout {
         userName.addClassName("user-name");
 
         profileChip.add(avatar, userName);
+
+        // Click handler for profile chip
+        if (onProfileClick != null) {
+            profileChip.addClickListener(e -> onProfileClick.run());
+        }
 
         // Logout button
         var logoutButton = new Button("Logout", e -> {

@@ -515,6 +515,50 @@ vaadin-button[theme~="primary"]:hover {
   display: block;
 }
 
+/* Session Panel Container */
+.session-panel-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 185;
+}
+
+/* Session Panel specific styles */
+.session-panel {
+  background: linear-gradient(180deg, var(--sb-bg-medium) 0%, var(--sb-bg-dark) 100%);
+}
+
+/* Vaadin Tabs in side panel */
+.side-panel vaadin-tabs {
+  background: var(--sb-bg-light);
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.side-panel vaadin-tab {
+  color: var(--sb-text-secondary);
+  padding: var(--lumo-space-s) var(--lumo-space-m);
+}
+
+.side-panel vaadin-tab[selected] {
+  color: var(--sb-accent);
+}
+
+.side-panel vaadin-tab:hover {
+  color: var(--sb-text-primary);
+}
+
+/* Asset card styles */
+.asset-card {
+  background: var(--sb-bg-light);
+  border: 1px solid var(--sb-border);
+  border-left: 3px solid var(--sb-accent);
+  border-radius: var(--lumo-border-radius-m);
+  padding: var(--lumo-space-s);
+  margin-bottom: var(--lumo-space-s);
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .side-panel {

@@ -38,7 +38,7 @@ public class ChatActions {
      * Marker interface for process state
      */
     @State
-    interface AirState {
+    public interface AirState {
     }
 
     /**
@@ -87,7 +87,7 @@ public class ChatActions {
                     .withLlm(properties.chatLlm())
                     .withId("chitchat.respond")
                     .withReferences(
-                            airlinePolicies.rag(),
+                            airlinePolicies.reference(),
                             entityViewService.viewOf(customer)
                     )
                     .withReferences(assets)

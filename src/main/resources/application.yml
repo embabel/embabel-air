@@ -1,5 +1,12 @@
 server:
   port: 8747
+  servlet:
+    session:
+      timeout: 4h  # Keep sessions alive for 4 hours
+
+vaadin:
+  heartbeat-interval: 60  # 1 minute heartbeat - keeps connection alive
+  close-idle-sessions: false  # Don't close sessions on missed heartbeats
 
 embabel-air:
   chunker-config:
