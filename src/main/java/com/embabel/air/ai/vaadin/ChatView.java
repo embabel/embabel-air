@@ -85,9 +85,13 @@ public class ChatView extends VerticalLayout {
         headerImage.setHeight("60px");
 
         // User section (right) - clicking opens session panel
-        var userSection = new UserSection(currentUser, this::openSessionPanel);
+        var userSection = new UserSection(currentUser, this::toggleSessionPanel);
         headerRow.add(headerImage, userSection);
         add(headerRow);
+
+        // Session panel (drawer from right)
+        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform);
+        getElement().appendChild(sessionPanel.getElement());
 
         // Messages container
         messagesLayout = new VerticalLayout();
@@ -113,29 +117,12 @@ public class ChatView extends VerticalLayout {
         var drawer = new DocumentsDrawer(documentService, currentUser, this::refreshFooter);
         getElement().appendChild(drawer.getElement());
 
-        // Session panel (opened by clicking user profile)
-        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform);
-        getElement().appendChild(sessionPanel.getElement());
-
         // Initialize session on attach (kicks off agent process and greeting)
         addAttachListener(event -> {
             var ui = event.getUI();
             restorePreviousMessages(ui);
             initializeSession();
         });
-    }
-
-    private void openSessionPanel() {
-        sessionPanel.open();
-    }
-
-    private ChatSession getCurrentSession() {
-        var ui = getUI().orElse(null);
-        if (ui == null) return null;
-        var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
-        return sessionData != null ? sessionData.chatSession() : null;
     }
 
     private void initializeSession() {
@@ -161,6 +148,23 @@ public class ChatView extends VerticalLayout {
         remove(footer);
         footer = new Footer(documentService.getDocumentCount(), documentService.getChunkCount());
         add(footer);
+    }
+
+    private void toggleSessionPanel() {
+        if (sessionPanel.isOpen()) {
+            sessionPanel.close();
+        } else {
+            sessionPanel.open();
+        }
+    }
+
+    private ChatSession getCurrentSession() {
+        var ui = getUI().orElse(null);
+        if (ui == null) return null;
+        var vaadinSession = VaadinSession.getCurrent();
+        var sessionKey = getSessionKey(ui);
+        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        return sessionData != null ? sessionData.chatSession() : null;
     }
 
     private record SessionData(ChatSession chatSession, VaadinOutputChannel outputChannel) {

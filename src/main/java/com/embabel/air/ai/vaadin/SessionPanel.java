@@ -10,8 +10,6 @@ import com.embabel.chat.ChatSession;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
@@ -40,7 +38,7 @@ class SessionPanel extends Div {
 
     private final VerticalLayout sidePanel;
     private final Div backdrop;
-    private ShortcutRegistration escapeShortcut;
+    private boolean isOpen = false;
 
     private final Supplier<ChatSession> sessionSupplier;
     private final AgentPlatform agentPlatform;
@@ -363,24 +361,21 @@ class SessionPanel extends Div {
     }
 
     public void open() {
+        if (isOpen) return;
+        isOpen = true;
         refreshAssets();
         sidePanel.addClassName("open");
         backdrop.addClassName("visible");
-        escapeShortcut = getUI().map(ui ->
-                ui.addShortcutListener(this::close, Key.ESCAPE)
-        ).orElse(null);
     }
 
     public void close() {
+        if (!isOpen) return;
+        isOpen = false;
         sidePanel.removeClassName("open");
         backdrop.removeClassName("visible");
-        if (escapeShortcut != null) {
-            escapeShortcut.remove();
-            escapeShortcut = null;
-        }
     }
 
     public boolean isOpen() {
-        return sidePanel.hasClassName("open");
+        return isOpen;
     }
 }

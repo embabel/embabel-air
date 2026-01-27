@@ -22,7 +22,6 @@ class UserSection extends HorizontalLayout {
         profileChip.addClassName("profile-chip");
         profileChip.setAlignItems(FlexComponent.Alignment.CENTER);
         profileChip.setSpacing(false);
-        profileChip.getStyle().set("cursor", "pointer");
 
         // Avatar with initials
         var initials = getInitials(user.getDisplayName());
@@ -35,10 +34,9 @@ class UserSection extends HorizontalLayout {
 
         profileChip.add(avatar, userName);
 
-        // Click handler for profile chip
-        if (onProfileClick != null) {
-            profileChip.addClickListener(e -> onProfileClick.run());
-        }
+        // Make profile chip clickable
+        profileChip.getStyle().set("cursor", "pointer");
+        profileChip.addClickListener(e -> onProfileClick.run());
 
         // Logout button
         var logoutButton = new Button("Logout", e -> {
