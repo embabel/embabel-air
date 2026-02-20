@@ -17,5 +17,11 @@ package com.embabel.air.backend;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface ReservationRepository extends JpaRepository<Reservation, String> {
+
+    Reservation findByBookingReference(String bookingReference);
+
+    List<Reservation> findByCustomer_Id(String customerId);
 }

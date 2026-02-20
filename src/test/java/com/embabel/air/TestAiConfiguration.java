@@ -64,7 +64,8 @@ public class TestAiConfiguration {
         return new SpringAiEmbeddingService(
                 "text-embedding-3-small",
                 "OpenAI",
-                new FakeEmbeddingModel(1536)
+                new FakeEmbeddingModel(1536),
+                1536
         );
     }
 

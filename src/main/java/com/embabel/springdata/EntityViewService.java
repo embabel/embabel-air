@@ -16,8 +16,10 @@
 package com.embabel.springdata;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import com.embabel.agent.api.reference.LlmReference;
 import com.embabel.agent.api.tool.MatryoshkaTool;
 import com.embabel.agent.api.tool.Tool;
+import com.embabel.agent.api.tool.progressive.UnfoldingTool;
 import com.embabel.common.textio.template.NoSuchTemplateException;
 import com.embabel.common.textio.template.TemplateRenderer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,11 +36,14 @@ import org.springframework.data.repository.support.Repositories;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -426,32 +431,49 @@ public class EntityViewService {
      * Create a finder tool for an entity type.
      *
      * <p>The returned tool is a MatryoshkaTool that accepts an entity ID. When invoked,
-     * it finds the entity, wraps it in its EntityView, and exposes all @LlmTool methods
-     * from that view as inner tools.
+     * it finds the entity, wraps it in its EntityView (if registered), and exposes all
+     * @LlmTool methods from that view as inner tools.
+     *
+     * <p>If no EntityView is registered but the entity class has @LlmTool methods,
+     * falls back to using those entity methods directly with EntityViewStrategy.DEFAULT
+     * for rendering.
      *
      * @param entityClass The entity class to create a finder for
      * @param <E>         Entity type
-     * @return A MatryoshkaTool that finds entities by ID and exposes their view's tools
-     * @throws IllegalArgumentException if no EntityView is registered for the entity class
+     * @return A MatryoshkaTool that finds entities by ID and exposes their tools
+     * @throws IllegalArgumentException if no EntityView registered and no @LlmTool methods on entity
      */
     public <E> MatryoshkaTool finderFor(Class<E> entityClass) {
-        if (!viewRegistry.containsKey(entityClass)) {
-            throw new IllegalArgumentException(
-                    "No EntityView registered for " + entityClass.getSimpleName() +
-                            ". Create an interface annotated with @LlmView.");
-        }
-
         if (repositories.getRepositoryFor(entityClass).isEmpty()) {
             throw new IllegalArgumentException(
                     "No repository found for " + entityClass.getSimpleName() +
                             ". Ensure a CrudRepository exists for this entity.");
         }
 
-        var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
+        if (viewRegistry.containsKey(entityClass)) {
+            var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
+            return new EntityFinderMatryoshkaTool<>(
+                    entityClass,
+                    this::viewOf,
+                    description,
+                    transactionTemplate,
+                    repositories,
+                    objectMapper,
+                    this
+            );
+        }
 
+        // Fall back to entity @LlmTool methods
+        if (!hasEntityTools(entityClass)) {
+            throw new IllegalArgumentException(
+                    "No EntityView registered and no @LlmTool methods on " + entityClass.getSimpleName() +
+                            ". Create an interface annotated with @LlmView or add @LlmTool to entity methods.");
+        }
+
+        var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
         return new EntityFinderMatryoshkaTool<>(
                 entityClass,
-                this::viewOf,
+                null,
                 description,
                 transactionTemplate,
                 repositories,
@@ -465,6 +487,144 @@ public class EntityViewService {
      */
     public boolean hasViewFor(Class<?> entityClass) {
         return viewRegistry.containsKey(entityClass);
+    }
+
+    /**
+     * Check if an entity class has any methods annotated with @LlmTool.
+     */
+    public boolean hasEntityTools(Class<?> entityClass) {
+        for (Method method : entityClass.getMethods()) {
+            if (method.getAnnotation(LlmTool.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Create an LlmReference for an entity without requiring an EntityView interface.
+     *
+     * <p>Uses @LlmTool methods on the entity class directly for tools,
+     * and EntityViewStrategy.DEFAULT for rendering notes.
+     *
+     * @param entity The entity to create a reference for
+     * @param <E>    Entity type
+     * @return An LlmReference with tools from entity @LlmTool methods and default notes
+     */
+    public <E> LlmReference entityReferenceFor(E entity) {
+        var entityClass = entity.getClass();
+        var entitySimpleName = entityClass.getSimpleName().toLowerCase();
+        var description = descriptionRegistry.getOrDefault(entityClass, entityClass.getSimpleName());
+
+        var tools = createEntityTools(entity);
+
+        var entityId = getEntityId(entity);
+        var notes = transactionTemplate.execute(status -> {
+            @SuppressWarnings("unchecked")
+            var repo = (CrudRepository<E, Object>) repositories.getRepositoryFor(entityClass)
+                    .orElseThrow(() -> new IllegalStateException("No repository for " + entityClass));
+            E freshEntity = repo.findById(entityId)
+                    .orElseThrow(() -> new IllegalStateException("Entity not found: " + entityId));
+            return EntityViewStrategy.DEFAULT.fullText(freshEntity);
+        });
+
+        return LlmReference.of(entitySimpleName, description, tools, notes != null ? notes : "");
+    }
+
+    /**
+     * Create tools from @LlmTool methods on an entity class directly.
+     *
+     * <p>Unlike createTools(EntityView), this scans the entity class itself
+     * for @LlmTool methods and creates TransactionalEntityTool wrappers.
+     *
+     * @param entity The entity instance
+     * @param <E>    Entity type
+     * @return List of tools from @LlmTool methods on the entity class
+     */
+    public <E> List<Tool> createEntityTools(E entity) {
+        var tools = new ArrayList<Tool>();
+        var entityClass = entity.getClass();
+        var entityId = getEntityId(entity);
+
+        for (Method method : entityClass.getMethods()) {
+            var annotation = method.getAnnotation(LlmTool.class);
+            if (annotation != null) {
+                tools.add(new TransactionalEntityTool<>(
+                        entityClass,
+                        entityId,
+                        method,
+                        annotation,
+                        transactionTemplate,
+                        repositories,
+                        objectMapper,
+                        this
+                ));
+            }
+        }
+
+        logger.info(Tool.formatToolTree(entityClass.getSimpleName(), tools));
+        return tools;
+    }
+
+    /**
+     * Create UnfoldingTools from custom finder methods on a Spring Data repository interface.
+     *
+     * <p>Scans the repository interface for custom finder methods (declared directly,
+     * not inherited from CrudRepository/JpaRepository) and creates a RepositoryFinderTool
+     * for each single-entity-returning finder.
+     *
+     * @param repositoryInterface The repository interface class (e.g., ReservationRepository.class)
+     * @return List of tools wrapping custom finder methods
+     */
+    @SuppressWarnings("unchecked")
+    public List<Tool> repositoryToolsFor(Class<?> repositoryInterface) {
+        // Resolve entity class from the repository's generic type parameter
+        var entityClass = inferEntityClassFromRepository(repositoryInterface);
+
+        var repo = repositories.getRepositoryFor(entityClass)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No repository found for " + entityClass.getSimpleName()));
+
+        var tools = new ArrayList<Tool>();
+        for (Method method : repositoryInterface.getDeclaredMethods()) {
+            if (method.isDefault() || method.isSynthetic()) continue;
+
+            var returnType = method.getReturnType();
+            boolean returnsEntity = returnType.equals(entityClass);
+            boolean returnsOptional = returnType.equals(Optional.class);
+            boolean returnsList = List.class.isAssignableFrom(returnType) || Collection.class.isAssignableFrom(returnType);
+
+            if (returnsEntity || returnsOptional || returnsList) {
+                tools.add(new RepositoryFinderTool<>(
+                        entityClass,
+                        repo,
+                        method,
+                        transactionTemplate,
+                        repositories,
+                        objectMapper,
+                        this
+                ));
+            }
+        }
+
+        logger.info(Tool.formatToolTree(repositoryInterface.getSimpleName(), tools));
+        return tools;
+    }
+
+    /**
+     * Infer the entity class from a repository interface's generic type parameter.
+     */
+    static Class<?> inferEntityClassFromRepository(Class<?> repositoryInterface) {
+        for (var type : repositoryInterface.getGenericInterfaces()) {
+            if (type instanceof ParameterizedType pt) {
+                var args = pt.getActualTypeArguments();
+                if (args.length > 0 && args[0] instanceof Class<?> entityClass) {
+                    return entityClass;
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+                "Cannot infer entity class from " + repositoryInterface.getName());
     }
 
     /**
@@ -779,12 +939,14 @@ public class EntityViewService {
     }
 
     /**
-     * MatryoshkaTool that finds an entity by ID and exposes its EntityView's tools.
+     * MatryoshkaTool that finds an entity by ID and exposes its EntityView's tools,
+     * or entity @LlmTool methods if no view is registered.
      */
     static class EntityFinderMatryoshkaTool<E> implements MatryoshkaTool {
 
         private final Class<E> entityClass;
         private final Class<?> idType;
+        // Null when no EntityView is registered (falls back to entity @LlmTool methods)
         private final java.util.function.Function<E, ? extends EntityView<E>> viewFactory;
         private final TransactionTemplate transactionTemplate;
         private final Repositories repositories;
@@ -870,11 +1032,17 @@ public class EntityViewService {
                             .orElseThrow(() -> new IllegalStateException(
                                     entityClass.getSimpleName() + " not found with ID: " + entityId));
 
-                    // Create the view
-                    EntityView<E> view = viewFactory.apply(entity);
-
-                    // Create tools from the view
-                    currentInnerTools = entityViewService.createTools(view, (java.util.function.Function<E, EntityView<E>>) viewFactory);
+                    String entityText;
+                    if (viewFactory != null) {
+                        // Use EntityView path
+                        EntityView<E> view = viewFactory.apply(entity);
+                        currentInnerTools = entityViewService.createTools(view, (java.util.function.Function<E, EntityView<E>>) viewFactory);
+                        entityText = view.fullText();
+                    } else {
+                        // Fall back to entity @LlmTool methods
+                        currentInnerTools = entityViewService.createEntityTools(entity);
+                        entityText = EntityViewStrategy.DEFAULT.fullText(entity);
+                    }
 
                     // Return full text and list of available tools as JSON
                     var toolNames = currentInnerTools.stream()
@@ -882,10 +1050,10 @@ public class EntityViewService {
                             .toList();
 
                     var result = Map.of(
-                            "entity", view.fullText(),
+                            "entity", entityText,
                             "availableTools", toolNames
                     );
-                    return Result.withArtifact(objectMapper.writeValueAsString(result), view);
+                    return Result.withArtifact(objectMapper.writeValueAsString(result), entity);
                 } catch (Exception e) {
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     return Result.error(cause.getMessage(), cause);
@@ -921,6 +1089,425 @@ public class EntityViewService {
             } catch (Exception e) {
                 return null;
             }
+        }
+    }
+
+    /**
+     * Tool that reloads entity and invokes @LlmTool methods on the entity directly
+     * (not on a view interface). Used by createEntityTools().
+     */
+    static class TransactionalEntityTool<E> implements Tool {
+
+        private final Class<?> entityClass;
+        private final Object entityId;
+        private final Method method;
+        private final LlmTool annotation;
+        private final TransactionTemplate transactionTemplate;
+        private final Repositories repositories;
+        private final ObjectMapper objectMapper;
+        private final EntityViewService entityViewService;
+        private final Definition definition;
+
+        TransactionalEntityTool(
+                Class<?> entityClass,
+                Object entityId,
+                Method method,
+                LlmTool annotation,
+                TransactionTemplate transactionTemplate,
+                Repositories repositories,
+                ObjectMapper objectMapper,
+                EntityViewService entityViewService) {
+            this.entityClass = entityClass;
+            this.entityId = entityId;
+            this.method = method;
+            this.annotation = annotation;
+            this.entityViewService = entityViewService;
+            this.transactionTemplate = transactionTemplate;
+            this.repositories = repositories;
+            this.objectMapper = objectMapper;
+            this.definition = buildDefinition();
+        }
+
+        private Definition buildDefinition() {
+            var name = annotation.name().isEmpty() ? method.getName() : annotation.name();
+            var description = annotation.description();
+
+            var toolParams = new ArrayList<Tool.Parameter>();
+            for (var param : method.getParameters()) {
+                var paramAnnotation = param.getAnnotation(LlmTool.Param.class);
+                var paramDesc = paramAnnotation != null ? paramAnnotation.description() : param.getName();
+                var required = paramAnnotation == null || paramAnnotation.required();
+
+                toolParams.add(new Tool.Parameter(
+                        param.getName(),
+                        mapJavaTypeToParameterType(param.getType()),
+                        paramDesc,
+                        required,
+                        null
+                ));
+            }
+
+            return Definition.create(name, description, InputSchema.of(toolParams.toArray(new Tool.Parameter[0])));
+        }
+
+        private ParameterType mapJavaTypeToParameterType(Class<?> type) {
+            if (type == String.class) return ParameterType.STRING;
+            if (type == int.class || type == Integer.class || type == long.class || type == Long.class)
+                return ParameterType.INTEGER;
+            if (type == double.class || type == Double.class || type == float.class || type == Float.class)
+                return ParameterType.NUMBER;
+            if (type == boolean.class || type == Boolean.class) return ParameterType.BOOLEAN;
+            if (type.isArray() || List.class.isAssignableFrom(type)) return ParameterType.ARRAY;
+            return ParameterType.OBJECT;
+        }
+
+        @Override
+        public Definition getDefinition() {
+            return definition;
+        }
+
+        @Override
+        public Metadata getMetadata() {
+            return Metadata.create(annotation.returnDirect());
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Result call(String input) {
+            return transactionTemplate.execute(status -> {
+                try {
+                    var repo = (CrudRepository<E, Object>) repositories.getRepositoryFor(entityClass)
+                            .orElseThrow(() -> new IllegalStateException("No repository for " + entityClass));
+
+                    E freshEntity = repo.findById(entityId)
+                            .orElseThrow(() -> new IllegalStateException("Entity not found: " + entityId));
+
+                    Object[] args = parseArguments(input);
+                    Object result = method.invoke(freshEntity, args);
+                    return convertResult(result);
+
+                } catch (Exception e) {
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    return Result.error(cause.getMessage(), cause);
+                }
+            });
+        }
+
+        @SuppressWarnings("unchecked")
+        private Object[] parseArguments(String input) {
+            if (input == null || input.isBlank()) {
+                return new Object[method.getParameterCount()];
+            }
+
+            try {
+                Map<String, Object> inputMap = objectMapper.readValue(input, Map.class);
+                var params = method.getParameters();
+                Object[] args = new Object[params.length];
+
+                for (int i = 0; i < params.length; i++) {
+                    Object value = inputMap.get(params[i].getName());
+                    args[i] = convertToType(value, params[i].getType());
+                }
+
+                return args;
+            } catch (Exception e) {
+                return new Object[method.getParameterCount()];
+            }
+        }
+
+        private Object convertToType(Object value, Class<?> targetType) {
+            if (value == null) return null;
+            if (targetType.isInstance(value)) return value;
+
+            if (targetType == String.class) return value.toString();
+            if (targetType == int.class || targetType == Integer.class) {
+                return value instanceof Number n ? n.intValue() : Integer.parseInt(value.toString());
+            }
+            if (targetType == long.class || targetType == Long.class) {
+                return value instanceof Number n ? n.longValue() : Long.parseLong(value.toString());
+            }
+            if (targetType == double.class || targetType == Double.class) {
+                return value instanceof Number n ? n.doubleValue() : Double.parseDouble(value.toString());
+            }
+            if (targetType == boolean.class || targetType == Boolean.class) {
+                return value instanceof Boolean b ? b : Boolean.parseBoolean(value.toString());
+            }
+
+            return objectMapper.convertValue(value, targetType);
+        }
+
+        private Result convertResult(Object result) {
+            if (result == null) return Result.text("");
+            if (result instanceof String s) return Result.text(s);
+            if (result instanceof Result r) return r;
+
+            if (result instanceof EntityView<?> view) {
+                return Result.text(view.summary());
+            }
+
+            if (entityViewService.hasViewFor(result.getClass())) {
+                return Result.text(entityViewService.viewOf(result).summary());
+            }
+
+            if (result instanceof Collection<?> collection && !collection.isEmpty()) {
+                var first = collection.iterator().next();
+                if (first instanceof EntityView<?>) {
+                    var summaries = collection.stream()
+                            .map(e -> ((EntityView<?>) e).summary())
+                            .toList();
+                    return toJsonResult(summaries);
+                }
+                if (entityViewService.hasViewFor(first.getClass())) {
+                    var summaries = collection.stream()
+                            .map(e -> entityViewService.viewOf(e).summary())
+                            .toList();
+                    return toJsonResult(summaries);
+                }
+
+                // Fallback: use default strategy for entity collections without views
+                var summaries = collection.stream()
+                        .map(EntityViewStrategy.DEFAULT::fullText)
+                        .toList();
+                return toJsonResult(summaries);
+            }
+
+            if (result instanceof Traversable<?> vavrCollection && !vavrCollection.isEmpty()) {
+                var first = vavrCollection.head();
+                if (first instanceof EntityView<?>) {
+                    var summaries = vavrCollection.map(e -> ((EntityView<?>) e).summary()).toJavaList();
+                    return toJsonResult(summaries);
+                }
+                if (entityViewService.hasViewFor(first.getClass())) {
+                    var summaries = vavrCollection.map(e -> entityViewService.viewOf(e).summary()).toJavaList();
+                    return toJsonResult(summaries);
+                }
+            }
+
+            return toJsonResult(result);
+        }
+
+        private Result toJsonResult(Object value) {
+            try {
+                return Result.text(objectMapper.writeValueAsString(value));
+            } catch (Exception e) {
+                return Result.text(value.toString());
+            }
+        }
+    }
+
+    /**
+     * UnfoldingTool that wraps a Spring Data repository finder method.
+     * When invoked, calls the finder, then exposes entity @LlmTool methods (or view tools)
+     * as inner tools.
+     */
+    static class RepositoryFinderTool<E> implements MatryoshkaTool {
+
+        private final Class<?> entityClass;
+        private final Object repository;
+        private final Method finderMethod;
+        private final TransactionTemplate transactionTemplate;
+        private final Repositories repositories;
+        private final ObjectMapper objectMapper;
+        private final EntityViewService entityViewService;
+        private final boolean returnsList;
+        private final Definition definition;
+
+        private List<Tool> currentInnerTools = List.of();
+
+        RepositoryFinderTool(
+                Class<?> entityClass,
+                Object repository,
+                Method finderMethod,
+                TransactionTemplate transactionTemplate,
+                Repositories repositories,
+                ObjectMapper objectMapper,
+                EntityViewService entityViewService) {
+            this.entityClass = entityClass;
+            this.repository = repository;
+            this.finderMethod = finderMethod;
+            this.transactionTemplate = transactionTemplate;
+            this.repositories = repositories;
+            this.objectMapper = objectMapper;
+            this.entityViewService = entityViewService;
+            var returnType = finderMethod.getReturnType();
+            this.returnsList = List.class.isAssignableFrom(returnType) || Collection.class.isAssignableFrom(returnType);
+            this.definition = buildDefinition();
+        }
+
+        private Definition buildDefinition() {
+            // Convert method name to tool-friendly format: findByBookingReference -> find_reservation_by_booking_reference
+            var entityName = entityClass.getSimpleName().toLowerCase();
+            var methodName = finderMethod.getName();
+            var toolName = camelToSnake(methodName.replaceFirst("^findBy", "find_" + entityName + "_by_"));
+
+            var desc = returnsList
+                    ? "Find " + entityClass.getSimpleName() + " records using " + methodName
+                    : "Find a " + entityClass.getSimpleName() + " using " + methodName;
+
+            var toolParams = new ArrayList<Tool.Parameter>();
+            for (var param : finderMethod.getParameters()) {
+                var paramAnnotation = param.getAnnotation(LlmTool.Param.class);
+                var paramDesc = paramAnnotation != null ? paramAnnotation.description() : param.getName();
+                var required = paramAnnotation == null || paramAnnotation.required();
+
+                toolParams.add(new Tool.Parameter(
+                        param.getName(),
+                        mapJavaTypeToParameterType(param.getType()),
+                        paramDesc,
+                        required,
+                        null
+                ));
+            }
+
+            return Definition.create(toolName, desc, InputSchema.of(toolParams.toArray(new Tool.Parameter[0])));
+        }
+
+        private static String camelToSnake(String name) {
+            return name.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
+        }
+
+        private ParameterType mapJavaTypeToParameterType(Class<?> type) {
+            if (type == String.class) return ParameterType.STRING;
+            if (type == int.class || type == Integer.class || type == long.class || type == Long.class)
+                return ParameterType.INTEGER;
+            if (type == double.class || type == Double.class || type == float.class || type == Float.class)
+                return ParameterType.NUMBER;
+            if (type == boolean.class || type == Boolean.class) return ParameterType.BOOLEAN;
+            if (type.isArray() || List.class.isAssignableFrom(type)) return ParameterType.ARRAY;
+            return ParameterType.OBJECT;
+        }
+
+        @Override
+        public Definition getDefinition() {
+            return definition;
+        }
+
+        @Override
+        public List<Tool> getInnerTools() {
+            return currentInnerTools;
+        }
+
+        @Override
+        public boolean getRemoveOnInvoke() {
+            return true;
+        }
+
+        @Override
+        public List<Tool> selectTools(String input) {
+            return currentInnerTools;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Result call(String input) {
+            return transactionTemplate.execute(status -> {
+                try {
+                    Object[] args = parseArguments(input);
+
+                    // Invoke the repository finder method
+                    Object rawResult = finderMethod.invoke(repository, args);
+
+                    // Handle collection returns (e.g., findByCustomer_Id returning List<Reservation>)
+                    if (rawResult instanceof Collection<?> collection) {
+                        if (collection.isEmpty()) {
+                            return Result.error("No " + entityClass.getSimpleName() + " records found", null);
+                        }
+                        var summaries = new ArrayList<String>();
+                        for (var item : collection) {
+                            E e = (E) item;
+                            if (entityViewService.hasViewFor(entityClass)) {
+                                summaries.add(entityViewService.viewOf(e).fullText());
+                            } else {
+                                summaries.add(EntityViewStrategy.DEFAULT.fullText(e));
+                            }
+                        }
+                        currentInnerTools = List.of();
+                        var result = Map.of(
+                                "count", collection.size(),
+                                "entities", summaries
+                        );
+                        return Result.withArtifact(objectMapper.writeValueAsString(result), collection);
+                    }
+
+                    // Handle single entity returns (Optional or direct)
+                    E entity;
+                    if (rawResult instanceof Optional<?> opt) {
+                        entity = (E) opt.orElseThrow(() -> new IllegalStateException(
+                                entityClass.getSimpleName() + " not found"));
+                    } else if (rawResult == null) {
+                        return Result.error(entityClass.getSimpleName() + " not found", null);
+                    } else {
+                        entity = (E) rawResult;
+                    }
+
+                    // Create inner tools from entity or view
+                    String entityText;
+                    if (entityViewService.hasViewFor(entityClass)) {
+                        var view = entityViewService.viewOf(entity);
+                        currentInnerTools = entityViewService.createTools(view);
+                        entityText = view.fullText();
+                    } else {
+                        currentInnerTools = entityViewService.createEntityTools(entity);
+                        entityText = EntityViewStrategy.DEFAULT.fullText(entity);
+                    }
+
+                    var toolNames = currentInnerTools.stream()
+                            .map(t -> t.getDefinition().getName())
+                            .toList();
+
+                    var result = Map.of(
+                            "entity", entityText,
+                            "availableTools", toolNames
+                    );
+                    return Result.withArtifact(objectMapper.writeValueAsString(result), entity);
+                } catch (Exception e) {
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    return Result.error(cause.getMessage(), cause);
+                }
+            });
+        }
+
+        @SuppressWarnings("unchecked")
+        private Object[] parseArguments(String input) {
+            if (input == null || input.isBlank()) {
+                return new Object[finderMethod.getParameterCount()];
+            }
+
+            try {
+                Map<String, Object> inputMap = objectMapper.readValue(input, Map.class);
+                var params = finderMethod.getParameters();
+                Object[] args = new Object[params.length];
+
+                for (int i = 0; i < params.length; i++) {
+                    Object value = inputMap.get(params[i].getName());
+                    args[i] = convertToType(value, params[i].getType());
+                }
+
+                return args;
+            } catch (Exception e) {
+                return new Object[finderMethod.getParameterCount()];
+            }
+        }
+
+        private Object convertToType(Object value, Class<?> targetType) {
+            if (value == null) return null;
+            if (targetType.isInstance(value)) return value;
+
+            if (targetType == String.class) return value.toString();
+            if (targetType == int.class || targetType == Integer.class) {
+                return value instanceof Number n ? n.intValue() : Integer.parseInt(value.toString());
+            }
+            if (targetType == long.class || targetType == Long.class) {
+                return value instanceof Number n ? n.longValue() : Long.parseLong(value.toString());
+            }
+            if (targetType == double.class || targetType == Double.class) {
+                return value instanceof Number n ? n.doubleValue() : Double.parseDouble(value.toString());
+            }
+            if (targetType == boolean.class || targetType == Boolean.class) {
+                return value instanceof Boolean b ? b : Boolean.parseBoolean(value.toString());
+            }
+
+            return objectMapper.convertValue(value, targetType);
         }
     }
 }

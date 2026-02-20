@@ -86,7 +86,7 @@ public class Customer implements User {
     }
 
     @Nullable
-    @LlmTool
+    @LlmTool(description = "Get customer's SkyPoints loyalty status")
     public SkyPointsStatus getStatus() {
         return skyPointsStatus;
     }
@@ -104,6 +104,26 @@ public class Customer implements User {
 
     public List<Reservation> getReservations() {
         return reservations;
+    }
+
+    @LlmTool(description = "Get customer's flight reservations with flight details including departure and arrival cities and times")
+    public String getFlightInfo() {
+        if (reservations.isEmpty()) {
+            return "No reservations found.";
+        }
+        var sb = new StringBuilder();
+        for (var res : reservations) {
+            sb.append("Booking ").append(res.getBookingReference());
+            sb.append(" (").append(res.isCheckedIn() ? "checked in" : "not checked in").append(")\n");
+            for (var seg : res.getFlightSegments()) {
+                sb.append("  ").append(seg.getDepartureAirportCode())
+                        .append(" → ").append(seg.getArrivalAirportCode())
+                        .append(" departing ").append(seg.getDepartureDateTime())
+                        .append(" arriving ").append(seg.getArrivalDateTime())
+                        .append("\n");
+            }
+        }
+        return sb.toString().trim();
     }
 
     public void addReservation(Reservation reservation) {
