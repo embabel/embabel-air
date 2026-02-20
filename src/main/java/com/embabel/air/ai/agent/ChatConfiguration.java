@@ -5,6 +5,7 @@ import com.embabel.agent.core.Verbosity;
 import com.embabel.air.ai.AirProperties;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.agent.AgentProcessChatbot;
+import com.embabel.chat.support.InMemoryConversationFactory;
 import com.embabel.common.textio.template.TemplateRenderer;
 import com.embabel.springdata.EntityViewService;
 import org.springframework.beans.factory.ListableBeanFactory;
@@ -22,6 +23,7 @@ class ChatConfiguration {
     Chatbot chatbot(AgentPlatform agentPlatform, AirProperties properties) {
         return AgentProcessChatbot.utilityFromPlatform(
                 agentPlatform,
+                new InMemoryConversationFactory(),
                 new Verbosity().withShowPrompts(properties.showChatPrompts())
         );
     }

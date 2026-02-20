@@ -137,7 +137,7 @@ public class ChatView extends VerticalLayout {
 
         // Create session with output channel that directly updates UI
         var outputChannel = new VaadinOutputChannel(ui);
-        var chatSession = chatbot.createSession(currentUser, outputChannel, UUID.randomUUID().toString());
+        var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
         var sessionData = new SessionData(chatSession, outputChannel);
         vaadinSession.setAttribute(sessionKey, sessionData);
         logger.info("Created new chat session for UI {}", ui.getUIId());
@@ -185,7 +185,7 @@ public class ChatView extends VerticalLayout {
 
         if (sessionData == null) {
             var outputChannel = new VaadinOutputChannel(ui);
-            var chatSession = chatbot.createSession(currentUser, outputChannel, UUID.randomUUID().toString());
+            var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
             sessionData = new SessionData(chatSession, outputChannel);
             vaadinSession.setAttribute(sessionKey, sessionData);
             logger.info("Created new chat session for UI {}", ui.getUIId());

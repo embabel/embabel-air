@@ -1,7 +1,7 @@
 package com.embabel.air.ai.rag;
 
 import com.embabel.agent.api.common.Ai;
-import com.embabel.agent.api.common.LlmReference;
+import com.embabel.agent.api.reference.LlmReference;
 import com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer;
 import com.embabel.agent.rag.pgvector.PgVectorStore;
 import com.embabel.agent.rag.pgvector.PgVectorStoreBuilder;

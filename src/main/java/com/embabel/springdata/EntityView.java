@@ -15,7 +15,7 @@
  */
 package com.embabel.springdata;
 
-import com.embabel.agent.api.common.LlmReference;
+import com.embabel.agent.api.reference.LlmReference;
 import com.embabel.chat.Asset;
 import org.jspecify.annotations.NonNull;
 
