@@ -7,6 +7,7 @@ import com.embabel.air.ai.AirProperties;
 import com.embabel.air.ai.rag.RagConfiguration.AirlinePolicies;
 import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.Reservation;
+import com.embabel.air.backend.ReservationRepository;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
 import com.embabel.springdata.EntityViewService;
@@ -88,10 +89,15 @@ public class ChatActions {
                     .withId("chitchat.respond")
                     .withReferences(
                             airlinePolicies.reference(),
-                            entityViewService.viewOf(customer)
+                            entityViewService.entityReferenceFor(customer)
                     )
                     .withReferences(assets)
                     .withTools(commonTools())
+                    .withTools(
+                            conversation.getAssetTracker().addAnyReturnedAssets(
+                                    entityViewService.repositoryToolsFor(ReservationRepository.class)
+                            )
+                    )
                     .withTools(
                             conversation.getAssetTracker().addAnyReturnedAssets(
                                     List.of(
@@ -99,7 +105,7 @@ public class ChatActions {
                                     )
                             )
                     )
-                    .withTemplate("air")
+                    .rendering("air")
                     .respondWithSystemPrompt(
                             conversation,
                             Map.of(

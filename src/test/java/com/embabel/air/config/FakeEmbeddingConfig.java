@@ -30,13 +30,14 @@ public class FakeEmbeddingConfig {
         return new SpringAiEmbeddingService(
                 "text-embedding-3-small",
                 "Fake",
-                new FakeEmbeddingModel()
+                new FakeEmbeddingModel(),
+                DIMENSIONS
         );
     }
 
-    private static class FakeEmbeddingModel implements EmbeddingModel {
+    private static final int DIMENSIONS = 1536;
 
-        private static final int DIMENSIONS = 1536;
+    private static class FakeEmbeddingModel implements EmbeddingModel {
         private final Random random = new Random(42); // Fixed seed for reproducibility
 
         @Override

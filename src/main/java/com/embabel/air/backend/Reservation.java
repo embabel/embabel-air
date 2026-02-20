@@ -1,5 +1,6 @@
 package com.embabel.air.backend;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -85,5 +86,14 @@ public class Reservation {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    @LlmTool(description = "Check in for this reservation")
+    public String checkIn() {
+        if (checkedIn) {
+            return "Already checked in for reservation " + bookingReference;
+        }
+        checkedIn = true;
+        return "Successfully checked in for reservation " + bookingReference;
     }
 }

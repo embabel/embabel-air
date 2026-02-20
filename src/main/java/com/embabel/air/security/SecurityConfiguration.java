@@ -21,11 +21,6 @@ class SecurityConfiguration extends VaadinWebSecurity {
         super.configure(http);
         setLoginView(http, LoginView.class);
 
-        // Disable CSRF for Vaadin PUSH endpoint (required for websocket/push to work properly)
-        http.csrf(csrf -> csrf
-                .ignoringRequestMatchers("/VAADIN/push/**")
-        );
-
         http.logout(logout -> logout
                 .logoutUrl("/logout")
                 .logoutSuccessUrl("/login")
@@ -33,11 +28,6 @@ class SecurityConfiguration extends VaadinWebSecurity {
                 .clearAuthentication(true)
                 .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
                 .permitAll()
-        );
-
-        // Prevent session fixation issues
-        http.sessionManagement(session -> session
-                .sessionFixation().migrateSession()
         );
     }
 
