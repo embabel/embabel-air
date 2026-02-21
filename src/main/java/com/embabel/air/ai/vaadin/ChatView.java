@@ -14,6 +14,7 @@ import com.embabel.chat.ChatSession;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.UserMessage;
 import com.embabel.dice.proposition.PropositionRepository;
+import com.embabel.dice.proposition.extraction.IncrementalPropositionExtraction;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -63,15 +64,19 @@ public class ChatView extends VerticalLayout {
     private Footer footer;
     private SessionPanel sessionPanel;
 
+    private final IncrementalPropositionExtraction propositionExtraction;
+
     public ChatView(Chatbot chatbot, AirProperties properties, DocumentService documentService,
                     CustomerService userService, AgentPlatform agentPlatform,
-                    PropositionRepository propositionRepository) {
+                    PropositionRepository propositionRepository,
+                    IncrementalPropositionExtraction propositionExtraction) {
         this.chatbot = chatbot;
         this.properties = properties;
         this.documentService = documentService;
         this.currentUser = userService.getAuthenticatedUser();
         this.agentPlatform = agentPlatform;
         this.propositionRepository = propositionRepository;
+        this.propositionExtraction = propositionExtraction;
         this.persona = "Emmie";
 
         setSizeFull();
@@ -96,7 +101,7 @@ public class ChatView extends VerticalLayout {
         add(headerRow);
 
         // Session panel (drawer from right)
-        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform, propositionRepository);
+        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform, propositionRepository, propositionExtraction);
         getElement().appendChild(sessionPanel.getElement());
 
         // Messages container

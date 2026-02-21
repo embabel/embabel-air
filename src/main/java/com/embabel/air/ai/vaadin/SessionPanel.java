@@ -9,6 +9,7 @@ import com.embabel.chat.AssetView;
 import com.embabel.chat.ChatSession;
 import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionRepository;
+import com.embabel.dice.proposition.extraction.IncrementalPropositionExtraction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -18,11 +19,18 @@ import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -35,6 +43,7 @@ import java.util.function.Supplier;
  */
 class SessionPanel extends Div {
 
+    private static final Logger logger = LoggerFactory.getLogger(SessionPanel.class);
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
@@ -46,6 +55,7 @@ class SessionPanel extends Div {
     private final Supplier<ChatSession> sessionSupplier;
     private final AgentPlatform agentPlatform;
     private final PropositionRepository propositionRepository;
+    private final IncrementalPropositionExtraction propositionExtraction;
     private final Customer customer;
 
     // Content panels
@@ -54,10 +64,12 @@ class SessionPanel extends Div {
     private final VerticalLayout memoryContent;
 
     SessionPanel(Customer user, Supplier<ChatSession> sessionSupplier, AgentPlatform agentPlatform,
-                 PropositionRepository propositionRepository) {
+                 PropositionRepository propositionRepository,
+                 IncrementalPropositionExtraction propositionExtraction) {
         this.sessionSupplier = sessionSupplier;
         this.agentPlatform = agentPlatform;
         this.propositionRepository = propositionRepository;
+        this.propositionExtraction = propositionExtraction;
         this.customer = user;
 
         addClassName("session-panel-container");
@@ -373,6 +385,9 @@ class SessionPanel extends Div {
     private void refreshMemory() {
         memoryContent.removeAll();
 
+        // Learn button row
+        memoryContent.add(createLearnUpload());
+
         var memoryTitle = new H4("Remembered Facts");
         memoryTitle.addClassName("section-title");
         memoryContent.add(memoryTitle);
@@ -380,7 +395,7 @@ class SessionPanel extends Div {
         try {
             var propositions = propositionRepository.findByContextIdValue(customer.getId());
             if (propositions.isEmpty()) {
-                var emptyMessage = new Span("No memories yet. Facts are extracted from conversations automatically.");
+                var emptyMessage = new Span("No memories yet. Facts are extracted from conversations automatically, or upload a document with Learn.");
                 emptyMessage.addClassName("empty-list-label");
                 memoryContent.add(emptyMessage);
                 return;
@@ -397,6 +412,98 @@ class SessionPanel extends Div {
         } catch (Exception e) {
             memoryContent.add(new Span("Error loading memories: " + e.getMessage()));
         }
+    }
+
+    private VerticalLayout createLearnUpload() {
+        var wrapper = new VerticalLayout();
+        wrapper.setPadding(false);
+        wrapper.setSpacing(true);
+        wrapper.setWidthFull();
+
+        var statusRow = new HorizontalLayout();
+        statusRow.setWidthFull();
+        statusRow.setAlignItems(FlexComponent.Alignment.CENTER);
+        statusRow.setSpacing(true);
+        statusRow.setPadding(false);
+        statusRow.setVisible(false);
+
+        var statusLabel = new Span();
+        var statusBar = new ProgressBar();
+        statusRow.add(statusLabel, statusBar);
+        statusRow.setFlexGrow(1, statusBar);
+
+        var buffer = new MemoryBuffer();
+        var upload = new Upload(buffer);
+        upload.setDropAllowed(false);
+        var learnButton = new Button("Learn", VaadinIcon.BOOK.create());
+        upload.setUploadButton(learnButton);
+        upload.setAcceptedFileTypes(
+                ".pdf", ".txt", ".md", ".html", ".htm",
+                ".doc", ".docx", ".odt", ".rtf",
+                "application/pdf", "text/plain", "text/markdown", "text/html",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+        upload.setMaxFileSize(10 * 1024 * 1024);
+        upload.setMaxFiles(1);
+        upload.addClassName("learn-upload");
+
+        // Clear file list so it never shows inline
+        upload.getElement().addEventListener("upload-start", e ->
+                upload.getElement().executeJs("this.files = []"));
+        upload.getElement().addEventListener("upload-success", e ->
+                upload.getElement().executeJs("this.files = []"));
+
+        upload.addStartedListener(event -> {
+            statusLabel.setText("Uploading: " + event.getFileName());
+            statusBar.setIndeterminate(false);
+            statusBar.setValue(0);
+            statusRow.setVisible(true);
+        });
+
+        upload.addProgressListener(event -> {
+            if (event.getContentLength() > 0) {
+                statusBar.setIndeterminate(false);
+                statusBar.setValue((double) event.getReadBytes() / event.getContentLength());
+            } else {
+                statusBar.setIndeterminate(true);
+            }
+        });
+
+        upload.addSucceededListener(event -> {
+            var filename = event.getFileName();
+            statusLabel.setText("Extracting memories from: " + filename);
+            statusBar.setIndeterminate(true);
+            try {
+                propositionExtraction.rememberFile(buffer.getInputStream(), filename, customer);
+                getUI().ifPresent(ui -> new Thread(() -> {
+                    try {
+                        Thread.sleep(5000);
+                        ui.access(() -> {
+                            statusRow.setVisible(false);
+                            refreshMemory();
+                        });
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start());
+            } catch (Exception e) {
+                logger.error("Failed to learn file: {}", filename, e);
+                statusLabel.setText("Error: " + e.getMessage());
+                statusBar.setVisible(false);
+            }
+        });
+
+        upload.addFailedListener(event -> {
+            logger.error("Upload failed: {}", event.getReason().getMessage());
+            statusRow.setVisible(false);
+            Notification.show("Upload failed: " + event.getReason().getMessage(),
+                            5000, Notification.Position.BOTTOM_CENTER)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        });
+
+        wrapper.add(upload, statusRow);
+        return wrapper;
     }
 
     private Div createPropositionCard(Proposition proposition) {

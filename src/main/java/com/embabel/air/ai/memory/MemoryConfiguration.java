@@ -7,15 +7,16 @@ import com.embabel.agent.rag.pgvector.JpaNamedEntityDataRepository;
 import com.embabel.agent.rag.pgvector.NativeEntityLookup;
 import com.embabel.agent.rag.service.NamedEntityDataRepository;
 import com.embabel.air.ai.AirProperties;
+import com.embabel.air.backend.City;
+import com.embabel.air.backend.Country;
 import com.embabel.air.backend.Customer;
 import com.embabel.air.backend.CustomerRepository;
-import com.embabel.dice.proposition.jdbc.JdbcPropositionRepository;
 import com.embabel.dice.common.EntityResolver;
 import com.embabel.dice.common.KnowledgeType;
 import com.embabel.dice.common.Relations;
+import com.embabel.dice.common.resolver.BakeoffPromptStrategies;
 import com.embabel.dice.common.resolver.EscalatingEntityResolver;
 import com.embabel.dice.common.resolver.LlmCandidateBakeoff;
-import com.embabel.dice.common.resolver.BakeoffPromptStrategies;
 import com.embabel.dice.incremental.ChunkHistoryStore;
 import com.embabel.dice.incremental.InMemoryChunkHistoryStore;
 import com.embabel.dice.pipeline.PropositionPipeline;
@@ -26,10 +27,9 @@ import com.embabel.dice.projection.memory.support.RelationBasedKnowledgeTypeClas
 import com.embabel.dice.proposition.PropositionRepository;
 import com.embabel.dice.proposition.extraction.IncrementalPropositionExtraction;
 import com.embabel.dice.proposition.extraction.LlmPropositionExtractor;
+import com.embabel.dice.proposition.jdbc.JdbcPropositionRepository;
 import com.embabel.dice.proposition.revision.LlmPropositionReviser;
 import com.embabel.dice.proposition.revision.PropositionReviser;
-import com.embabel.air.backend.City;
-import com.embabel.air.backend.Country;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -46,7 +46,7 @@ public class MemoryConfiguration {
 
     @Bean
     @Primary
-    DataDictionary airDomainSchema() {
+    DataDictionary airSchema() {
         return DataDictionary.fromClasses("embabel-air", Customer.class)
                 .plus(NamedEntity.dataDictionaryFromPackages("com.embabel.air.backend"));
     }
