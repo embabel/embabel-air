@@ -10,12 +10,17 @@ import com.embabel.air.backend.Reservation;
 import com.embabel.air.backend.ReservationRepository;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.Conversation;
+import com.embabel.dice.agent.Memory;
+import com.embabel.dice.common.ConversationAnalysisRequestEvent;
+import com.embabel.dice.projection.memory.MemoryProjector;
+import com.embabel.dice.proposition.PropositionRepository;
 import com.embabel.springdata.EntityViewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.springframework.context.ApplicationEventPublisher;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The platform can use any action to respond to user messages.
@@ -25,6 +30,13 @@ public class ChatActions {
 
     private final static Logger logger = LoggerFactory.getLogger(ChatActions.class);
 
+    private final ApplicationEventPublisher eventPublisher;
+    private final AirProperties airProperties;
+
+    public ChatActions(ApplicationEventPublisher eventPublisher, AirProperties airProperties) {
+        this.eventPublisher = eventPublisher;
+        this.airProperties = airProperties;
+    }
 
     /**
      * Condition: true if the last message in the conversation is from the user,
@@ -60,7 +72,7 @@ public class ChatActions {
         } else {
             logger.warn("greetCustomer: forUser is not a Customer: {}", forUser);
         }
-        return new ChitchatState();
+        return new ChitchatState(eventPublisher, airProperties);
     }
 
     /**
@@ -68,6 +80,14 @@ public class ChatActions {
      */
     @State
     static class ChitchatState implements AirState {
+
+        private final ApplicationEventPublisher eventPublisher;
+        private final AirProperties airProperties;
+
+        ChitchatState(ApplicationEventPublisher eventPublisher, AirProperties airProperties) {
+            this.eventPublisher = eventPublisher;
+            this.airProperties = airProperties;
+        }
 
         @Action(
                 pre = "shouldRespond",
@@ -79,11 +99,13 @@ public class ChatActions {
                 ActionContext context,
                 @Provided AirProperties properties,
                 @Provided AirlinePolicies airlinePolicies,
-                @Provided EntityViewService entityViewService) {
+                @Provided EntityViewService entityViewService,
+                @Provided PropositionRepository propositionRepository,
+                @Provided MemoryProjector memoryProjector) {
 
             var assets = conversation.getAssetTracker().mostRecentlyAdded(1).references();
 
-            var assistantMessage = context.
+            var aiBuilder = context.
                     ai()
                     .withLlm(properties.chatLlm())
                     .withId("chitchat.respond")
@@ -91,7 +113,23 @@ public class ChatActions {
                             airlinePolicies.reference(),
                             entityViewService.entityReferenceFor(customer)
                     )
-                    .withReferences(assets)
+                    .withReferences(assets);
+
+            // Add Memory reference if enabled
+            if (properties.memory() != null && properties.memory().getEnabled()) {
+                var recentContext = conversation.getMessages().stream()
+                        .skip(Math.max(0, conversation.getMessages().size() - 6))
+                        .map(m -> m.getContent())
+                        .collect(Collectors.joining("\n"));
+                aiBuilder = aiBuilder.withReferences(List.of(
+                        Memory.forContext(customer.getId())
+                                .withRepository(propositionRepository)
+                                .withProjector(memoryProjector)
+                                .withEagerSearchAbout(recentContext, 5)
+                ));
+            }
+
+            var assistantMessage = aiBuilder
                     .withTools(commonTools())
                     .withTools(
                             conversation.getAssetTracker().addAnyReturnedAssets(
@@ -112,6 +150,12 @@ public class ChatActions {
                                     "properties", properties
                             ));
             context.sendAndSave(assistantMessage);
+
+            if (airProperties.memory() != null && airProperties.memory().getEnabled()) {
+                eventPublisher.publishEvent(
+                        new ConversationAnalysisRequestEvent(this, customer, conversation));
+            }
+
             return this;
         }
     }

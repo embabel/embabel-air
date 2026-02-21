@@ -2,6 +2,7 @@ package com.embabel.air.backend;
 
 import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.identity.User;
+import com.embabel.agent.rag.model.NamedEntity;
 import jakarta.persistence.*;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
@@ -9,6 +10,8 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * User model for Embabel Air.
@@ -18,7 +21,7 @@ import java.util.List;
         @Index(name = "idx_customer_username", columnList = "username", unique = true),
         @Index(name = "idx_customer_email", columnList = "email")
 })
-public class Customer implements User {
+public class Customer implements User, NamedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -134,5 +137,22 @@ public class Customer implements User {
     @ApiStatus.Internal
     public void setStatus(SkyPointsStatus skyPointsStatus) {
         this.skyPointsStatus = skyPointsStatus;
+    }
+
+    // NamedEntity implementation
+
+    @Override
+    public @NonNull String getName() {
+        return displayName;
+    }
+
+    @Override
+    public @NonNull String getDescription() {
+        return "Customer: " + displayName;
+    }
+
+    @Override
+    public @NonNull String embeddableValue() {
+        return displayName;
     }
 }

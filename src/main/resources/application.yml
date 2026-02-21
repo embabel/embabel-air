@@ -20,6 +20,14 @@ embabel-air:
 
   show-chat-prompts: true
 
+  memory:
+    enabled: true
+    extraction-llm:
+      model: gpt-4.1-mini
+      temperature: 0.0
+    window-size: 10
+    trigger-interval: 6
+
 embabel:
 
   models:

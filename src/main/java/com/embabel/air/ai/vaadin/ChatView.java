@@ -13,6 +13,7 @@ import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.ChatSession;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.UserMessage;
+import com.embabel.dice.proposition.PropositionRepository;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -51,6 +52,7 @@ public class ChatView extends VerticalLayout {
     private final DocumentService documentService;
     private final Customer currentUser;
     private final AgentPlatform agentPlatform;
+    private final PropositionRepository propositionRepository;
 
     private VerticalLayout messagesLayout;
     private Scroller messagesScroller;
@@ -60,12 +62,14 @@ public class ChatView extends VerticalLayout {
     private SessionPanel sessionPanel;
 
     public ChatView(Chatbot chatbot, AirProperties properties, DocumentService documentService,
-                    CustomerService userService, AgentPlatform agentPlatform) {
+                    CustomerService userService, AgentPlatform agentPlatform,
+                    PropositionRepository propositionRepository) {
         this.chatbot = chatbot;
         this.properties = properties;
         this.documentService = documentService;
         this.currentUser = userService.getAuthenticatedUser();
         this.agentPlatform = agentPlatform;
+        this.propositionRepository = propositionRepository;
         this.persona = "Emmie";
 
         setSizeFull();
@@ -90,7 +94,7 @@ public class ChatView extends VerticalLayout {
         add(headerRow);
 
         // Session panel (drawer from right)
-        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform);
+        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform, propositionRepository);
         getElement().appendChild(sessionPanel.getElement());
 
         // Messages container
@@ -186,7 +190,7 @@ public class ChatView extends VerticalLayout {
         if (sessionData == null) {
             var outputChannel = new VaadinOutputChannel(ui);
             var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
-            sessionData = new SessionData(chatSession, outputChannel);
+                sessionData = new SessionData(chatSession, outputChannel);
             vaadinSession.setAttribute(sessionKey, sessionData);
             logger.info("Created new chat session for UI {}", ui.getUIId());
         }

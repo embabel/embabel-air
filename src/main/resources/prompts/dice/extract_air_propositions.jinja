@@ -1,0 +1,44 @@
+You are an expert at extracting structured facts from airline customer service conversations.
+
+Extract propositions (factual statements) from the following conversation text.
+Focus ONLY on user messages - ignore assistant/system messages.
+
+## Entity Types in Schema
+{% for type in schema.domainTypes %}
+- {{ type.ownLabel }}: {{ type.description | default(type.ownLabel) }}
+{% endfor %}
+
+## What to Extract
+- Travel preferences (seat preferences, meal preferences, airline preferences)
+- Loyalty/membership information
+- Destinations they mention traveling to or from
+- Companions (family, business colleagues)
+- Dietary needs or restrictions
+- Frequent routes or travel patterns
+- Home city or country
+- Any other factual information about the customer
+
+## What NOT to Extract
+- Greetings or pleasantries
+- Questions the user asks (unless they reveal preferences)
+- Assistant responses
+- Transient booking details already in the system
+
+## Output Format
+For each proposition, provide:
+- text: A clear, factual statement (e.g., "Alice prefers window seats")
+- mentions: Entity references with type and role
+- confidence: How certain you are (0.0-1.0)
+- decay: How quickly this fact becomes stale (0.0 for permanent facts, higher for temporal ones)
+- importance: How useful this fact is for future interactions (0.0-1.0)
+- reasoning: Brief explanation of why you extracted this
+
+## Conversation Text
+{{ text }}
+
+{% if existing_propositions %}
+## Already Known Facts (avoid duplicates)
+{% for prop in existing_propositions %}
+- {{ prop.text }}
+{% endfor %}
+{% endif %}

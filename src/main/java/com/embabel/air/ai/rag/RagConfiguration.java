@@ -5,7 +5,6 @@ import com.embabel.agent.api.reference.LlmReference;
 import com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer;
 import com.embabel.agent.rag.pgvector.PgVectorStore;
 import com.embabel.agent.rag.pgvector.PgVectorStoreBuilder;
-import com.embabel.agent.rag.service.SearchOperations;
 import com.embabel.agent.rag.tools.ToolishRag;
 import com.embabel.air.ai.AirProperties;
 import org.slf4j.Logger;
@@ -39,7 +38,7 @@ public class RagConfiguration {
     }
 
     @Bean
-    AirlinePolicies airlinePolicies(SearchOperations searchOperations) {
+    AirlinePolicies airlinePolicies(PgVectorStore searchOperations) {
         return new AirlinePolicies(
                 new ToolishRag("policies", "Embabel Air policies", searchOperations)
                         .asMatryoshka()
