@@ -46,6 +46,8 @@ public class ChatView extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatView.class);
 
+    private static final String SESSION_DATA_KEY = "sessionData";
+
     private final Chatbot chatbot;
     private final String persona;
     private final AirProperties properties;
@@ -110,6 +112,9 @@ public class ChatView extends VerticalLayout {
         add(messagesScroller);
         setFlexGrow(1, messagesScroller);
 
+        // Restore previous messages if session exists
+        restorePreviousMessages();
+
         // Input section
         add(createInputSection());
 
@@ -124,27 +129,27 @@ public class ChatView extends VerticalLayout {
         // Initialize session on attach (kicks off agent process and greeting)
         addAttachListener(event -> {
             var ui = event.getUI();
-            restorePreviousMessages(ui);
-            initializeSession();
+            initializeSession(ui);
         });
     }
 
-    private void initializeSession() {
-        var ui = getUI().orElse(null);
-        if (ui == null) return;
-
+    private void initializeSession(UI ui) {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        if (vaadinSession.getAttribute(sessionKey) != null) {
-            return; // Session already exists for this UI
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
+
+        if (sessionData != null) {
+            // Session already exists — update the output channel's UI reference
+            // in case the UI was recreated (e.g., page refresh, reconnect)
+            sessionData.outputChannel().updateUI(ui);
+            return;
         }
 
         // Create session with output channel that directly updates UI
         var outputChannel = new VaadinOutputChannel(ui);
         var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
-        var sessionData = new SessionData(chatSession, outputChannel);
-        vaadinSession.setAttribute(sessionKey, sessionData);
-        logger.info("Created new chat session for UI {}", ui.getUIId());
+        sessionData = new SessionData(chatSession, outputChannel);
+        vaadinSession.setAttribute(SESSION_DATA_KEY, sessionData);
+        logger.info("Created new chat session");
         // Greeting will be displayed automatically when it arrives via the output channel
     }
 
@@ -163,36 +168,24 @@ public class ChatView extends VerticalLayout {
     }
 
     private ChatSession getCurrentSession() {
-        var ui = getUI().orElse(null);
-        if (ui == null) return null;
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
         return sessionData != null ? sessionData.chatSession() : null;
     }
 
     private record SessionData(ChatSession chatSession, VaadinOutputChannel outputChannel) {
     }
 
-    /**
-     * Get the session attribute key for this UI instance.
-     * Each browser tab (UI) gets its own chat session to prevent cross-talk.
-     */
-    private String getSessionKey(UI ui) {
-        return "sessionData-" + ui.getUIId();
-    }
-
     private SessionData getOrCreateSession(UI ui) {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
 
         if (sessionData == null) {
             var outputChannel = new VaadinOutputChannel(ui);
             var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
-                sessionData = new SessionData(chatSession, outputChannel);
-            vaadinSession.setAttribute(sessionKey, sessionData);
-            logger.info("Created new chat session for UI {}", ui.getUIId());
+            sessionData = new SessionData(chatSession, outputChannel);
+            vaadinSession.setAttribute(SESSION_DATA_KEY, sessionData);
+            logger.info("Created new chat session");
         }
 
         return sessionData;
@@ -289,10 +282,9 @@ public class ChatView extends VerticalLayout {
         messagesScroller.getElement().executeJs("this.scrollTop = this.scrollHeight");
     }
 
-    private void restorePreviousMessages(UI ui) {
+    private void restorePreviousMessages() {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
         if (sessionData == null) {
             return;
         }
@@ -316,11 +308,18 @@ public class ChatView extends VerticalLayout {
      * Uses CompletableFuture to signal when a response to a user message has been received.
      */
     private class VaadinOutputChannel implements OutputChannel {
-        private final UI ui;
+        private volatile UI ui;
         private final AtomicReference<CompletableFuture<Void>> pendingResponse = new AtomicReference<>();
         volatile Div currentToolCallIndicator; // package-private for access from sendMessage
 
         VaadinOutputChannel(UI ui) {
+            this.ui = ui;
+        }
+
+        /**
+         * Update the UI reference when the UI is recreated (e.g., page refresh, reconnect).
+         */
+        void updateUI(UI ui) {
             this.ui = ui;
         }
 

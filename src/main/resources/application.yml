@@ -4,6 +4,9 @@ server:
 vaadin:
   heartbeat-interval: 60
   close-idle-sessions: false
+  devmode:
+    copilot:
+      enabled: false
 
 embabel-air:
   chunker-config:
