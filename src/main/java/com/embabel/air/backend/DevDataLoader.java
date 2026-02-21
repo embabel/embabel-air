@@ -183,11 +183,34 @@ public class DevDataLoader implements CommandLineRunner {
         return sb.toString();
     }
 
+    private static final List<String[]> POPULAR_ROUTES = List.of(
+            new String[]{"JFK", "LAX"}, new String[]{"LAX", "JFK"},
+            new String[]{"JFK", "SFO"}, new String[]{"SFO", "JFK"},
+            new String[]{"JFK", "MIA"}, new String[]{"MIA", "JFK"},
+            new String[]{"JFK", "ORD"}, new String[]{"ORD", "JFK"},
+            new String[]{"LAX", "ORD"}, new String[]{"ORD", "LAX"},
+            new String[]{"LAX", "SEA"}, new String[]{"SEA", "LAX"},
+            new String[]{"ORD", "MIA"}, new String[]{"MIA", "ORD"},
+            new String[]{"DFW", "ATL"}, new String[]{"ATL", "DFW"},
+            new String[]{"SFO", "SEA"}, new String[]{"SEA", "SFO"},
+            new String[]{"BOS", "DCA"}, new String[]{"DCA", "BOS"}
+    );
+
     private void seedAvailableFlights() {
         var now = LocalDateTime.now();
 
-        // Create available flights for the next 30 days
-        for (int i = 0; i < 100; i++) {
+        // Seed popular routes: 2 flights per day for 30 days on each route
+        for (var route : POPULAR_ROUTES) {
+            for (int day = 0; day < 30; day++) {
+                // Morning flight
+                seedFlight(route[0], route[1], now.plusDays(day), 7 + random.nextInt(4));
+                // Afternoon/evening flight
+                seedFlight(route[0], route[1], now.plusDays(day), 14 + random.nextInt(6));
+            }
+        }
+
+        // Additional random flights for variety and connecting options
+        for (int i = 0; i < 300; i++) {
             var departure = AIRPORTS.get(random.nextInt(AIRPORTS.size()));
             var arrival = AIRPORTS.get(random.nextInt(AIRPORTS.size()));
             while (arrival.equals(departure)) {
@@ -196,21 +219,24 @@ public class DevDataLoader implements CommandLineRunner {
 
             var daysOffset = random.nextInt(30);
             var hour = 6 + random.nextInt(16);
-            var departureTime = now.plusDays(daysOffset).withHour(hour).withMinute(random.nextInt(4) * 15);
-
-            var flightDurationMinutes = 60 + random.nextInt(300);
-            var arrivalTime = departureTime.plusMinutes(flightDurationMinutes);
-
-            var airline = AIRLINES.get(random.nextInt(AIRLINES.size()));
-            var equipment = EQUIPMENT.get(random.nextInt(EQUIPMENT.size()));
-            var seatsLeft = 10 + random.nextInt(150);
-
-            var segment = new FlightSegment(departure, departureTime, arrival, arrivalTime, airline);
-            segment.setEquipment(equipment);
-            segment.setSeatsLeft(seatsLeft);
-
-            flightSegmentRepository.save(segment);
+            seedFlight(departure, arrival, now.plusDays(daysOffset), hour);
         }
         log.info("Created {} available flight segments", flightSegmentRepository.count());
+    }
+
+    private void seedFlight(String departure, String arrival, LocalDateTime baseDate, int hour) {
+        var departureTime = baseDate.withHour(hour).withMinute(random.nextInt(4) * 15);
+        var flightDurationMinutes = 60 + random.nextInt(300);
+        var arrivalTime = departureTime.plusMinutes(flightDurationMinutes);
+
+        var airline = AIRLINES.get(random.nextInt(AIRLINES.size()));
+        var equipment = EQUIPMENT.get(random.nextInt(EQUIPMENT.size()));
+        var seatsLeft = 10 + random.nextInt(150);
+
+        var segment = new FlightSegment(departure, departureTime, arrival, arrivalTime, airline);
+        segment.setEquipment(equipment);
+        segment.setSeatsLeft(seatsLeft);
+
+        flightSegmentRepository.save(segment);
     }
 }
