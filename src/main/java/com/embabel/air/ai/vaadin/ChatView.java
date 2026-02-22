@@ -15,6 +15,9 @@ import com.embabel.chat.Chatbot;
 import com.embabel.chat.UserMessage;
 import com.embabel.dice.proposition.PropositionRepository;
 import com.embabel.dice.proposition.extraction.IncrementalPropositionExtraction;
+import com.embabel.vaadin.component.ChatMessageBubble;
+import com.embabel.vaadin.component.Footer;
+import com.embabel.vaadin.component.UserSection;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -97,7 +100,12 @@ public class ChatView extends VerticalLayout {
 
         // User section (right) - clicking opens session panel
         var userSection = new UserSection(currentUser, this::toggleSessionPanel);
-        headerRow.add(headerImage, userSection);
+        var logoutButton = new Button("Logout", e -> getUI().ifPresent(ui -> ui.getPage().setLocation("/logout")));
+        logoutButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        logoutButton.addClassName("logout-button");
+        var userArea = new HorizontalLayout(userSection, logoutButton);
+        userArea.setAlignItems(Alignment.CENTER);
+        headerRow.add(headerImage, userArea);
         add(headerRow);
 
         // Session panel (drawer from right)
@@ -124,7 +132,7 @@ public class ChatView extends VerticalLayout {
         add(createInputSection());
 
         // Footer
-        footer = new Footer(documentService.getDocumentCount(), documentService.getChunkCount());
+        footer = new Footer(documentService.getDocumentCount() + " documents \u00b7 " + documentService.getChunkCount() + " chunks");
         add(footer);
 
         // Documents drawer
@@ -160,7 +168,7 @@ public class ChatView extends VerticalLayout {
 
     private void refreshFooter() {
         remove(footer);
-        footer = new Footer(documentService.getDocumentCount(), documentService.getChunkCount());
+        footer = new Footer(documentService.getDocumentCount() + " documents \u00b7 " + documentService.getChunkCount() + " chunks");
         add(footer);
     }
 

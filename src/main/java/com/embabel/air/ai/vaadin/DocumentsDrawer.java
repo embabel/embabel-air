@@ -2,6 +2,7 @@ package com.embabel.air.ai.vaadin;
 
 import com.embabel.air.ai.rag.DocumentService;
 import com.embabel.air.backend.Customer;
+import com.embabel.vaadin.document.DocumentListSection;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.button.Button;
