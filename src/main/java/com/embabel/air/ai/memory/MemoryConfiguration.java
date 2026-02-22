@@ -3,7 +3,7 @@ package com.embabel.air.ai.memory;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.core.DataDictionary;
 import com.embabel.agent.rag.model.NamedEntity;
-import com.embabel.agent.rag.pgvector.JpaNamedEntityDataRepository;
+import com.embabel.agent.rag.pgvector.JdbcNamedEntityDataRepository;
 import com.embabel.agent.rag.pgvector.NativeEntityLookup;
 import com.embabel.agent.rag.service.NamedEntityDataRepository;
 import com.embabel.air.ai.AirProperties;
@@ -71,7 +71,7 @@ public class MemoryConfiguration {
     NamedEntityDataRepository namedEntityDataRepository(
             JdbcClient jdbcClient, Ai ai, DataDictionary dataDictionary,
             CustomerRepository customerRepository) {
-        return JpaNamedEntityDataRepository.builder()
+        return JdbcNamedEntityDataRepository.builder()
                 .withJdbcClient(jdbcClient)
                 .withDataDictionary(dataDictionary)
                 .withEmbeddingService(ai.withDefaultEmbeddingService())
