@@ -7,6 +7,9 @@ import com.embabel.air.backend.Customer;
 import com.embabel.chat.Asset;
 import com.embabel.chat.AssetView;
 import com.embabel.chat.ChatSession;
+import com.embabel.dice.proposition.Proposition;
+import com.embabel.dice.proposition.PropositionRepository;
+import com.embabel.dice.proposition.extraction.IncrementalPropositionExtraction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -16,14 +19,22 @@ import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +43,7 @@ import java.util.function.Supplier;
  */
 class SessionPanel extends Div {
 
+    private static final Logger logger = LoggerFactory.getLogger(SessionPanel.class);
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
@@ -42,14 +54,23 @@ class SessionPanel extends Div {
 
     private final Supplier<ChatSession> sessionSupplier;
     private final AgentPlatform agentPlatform;
+    private final PropositionRepository propositionRepository;
+    private final IncrementalPropositionExtraction propositionExtraction;
+    private final Customer customer;
 
     // Content panels
     private final VerticalLayout assetsContent;
     private final VerticalLayout stateContent;
+    private final VerticalLayout memoryContent;
 
-    SessionPanel(Customer user, Supplier<ChatSession> sessionSupplier, AgentPlatform agentPlatform) {
+    SessionPanel(Customer user, Supplier<ChatSession> sessionSupplier, AgentPlatform agentPlatform,
+                 PropositionRepository propositionRepository,
+                 IncrementalPropositionExtraction propositionExtraction) {
         this.sessionSupplier = sessionSupplier;
         this.agentPlatform = agentPlatform;
+        this.propositionRepository = propositionRepository;
+        this.propositionExtraction = propositionExtraction;
+        this.customer = user;
 
         addClassName("session-panel-container");
 
@@ -106,8 +127,9 @@ class SessionPanel extends Div {
         // Tabs
         var assetsTab = new Tab(VaadinIcon.CUBE.create(), new Span("Assets"));
         var stateTab = new Tab(VaadinIcon.COG.create(), new Span("State"));
+        var memoryTab = new Tab(VaadinIcon.LIGHTBULB.create(), new Span("Memory"));
 
-        var tabs = new Tabs(assetsTab, stateTab);
+        var tabs = new Tabs(assetsTab, stateTab, memoryTab);
         tabs.setWidthFull();
         sidePanel.add(tabs);
 
@@ -128,7 +150,13 @@ class SessionPanel extends Div {
         stateContent.setSpacing(true);
         stateContent.setVisible(false);
 
-        contentArea.add(assetsContent, stateContent);
+        // Memory content
+        memoryContent = new VerticalLayout();
+        memoryContent.setPadding(true);
+        memoryContent.setSpacing(true);
+        memoryContent.setVisible(false);
+
+        contentArea.add(assetsContent, stateContent, memoryContent);
         sidePanel.add(contentArea);
         sidePanel.setFlexGrow(1, contentArea);
 
@@ -137,11 +165,14 @@ class SessionPanel extends Div {
             var selected = event.getSelectedTab();
             assetsContent.setVisible(selected == assetsTab);
             stateContent.setVisible(selected == stateTab);
+            memoryContent.setVisible(selected == memoryTab);
 
             if (selected == assetsTab) {
                 refreshAssets();
             } else if (selected == stateTab) {
                 refreshState();
+            } else if (selected == memoryTab) {
+                refreshMemory();
             }
         });
 
@@ -349,6 +380,197 @@ class SessionPanel extends Div {
             }
         }
         stateContent.add(objectsList);
+    }
+
+    private void refreshMemory() {
+        memoryContent.removeAll();
+
+        // Learn button row
+        memoryContent.add(createLearnUpload());
+
+        var memoryTitle = new H4("Remembered Facts");
+        memoryTitle.addClassName("section-title");
+        memoryContent.add(memoryTitle);
+
+        try {
+            var propositions = propositionRepository.findByContextIdValue(customer.getId());
+            if (propositions.isEmpty()) {
+                var emptyMessage = new Span("No memories yet. Facts are extracted from conversations automatically, or upload a document with Learn.");
+                emptyMessage.addClassName("empty-list-label");
+                memoryContent.add(emptyMessage);
+                return;
+            }
+
+            // Sort by created descending (most recent first)
+            var sorted = propositions.stream()
+                    .sorted(Comparator.comparing(Proposition::getCreated).reversed())
+                    .toList();
+
+            for (var proposition : sorted) {
+                memoryContent.add(createPropositionCard(proposition));
+            }
+        } catch (Exception e) {
+            memoryContent.add(new Span("Error loading memories: " + e.getMessage()));
+        }
+    }
+
+    private VerticalLayout createLearnUpload() {
+        var wrapper = new VerticalLayout();
+        wrapper.setPadding(false);
+        wrapper.setSpacing(true);
+        wrapper.setWidthFull();
+
+        var statusRow = new HorizontalLayout();
+        statusRow.setWidthFull();
+        statusRow.setAlignItems(FlexComponent.Alignment.CENTER);
+        statusRow.setSpacing(true);
+        statusRow.setPadding(false);
+        statusRow.setVisible(false);
+
+        var statusLabel = new Span();
+        var statusBar = new ProgressBar();
+        statusRow.add(statusLabel, statusBar);
+        statusRow.setFlexGrow(1, statusBar);
+
+        var buffer = new MemoryBuffer();
+        var upload = new Upload(buffer);
+        upload.setDropAllowed(false);
+        var learnButton = new Button("Learn", VaadinIcon.BOOK.create());
+        upload.setUploadButton(learnButton);
+        upload.setAcceptedFileTypes(
+                ".pdf", ".txt", ".md", ".html", ".htm",
+                ".doc", ".docx", ".odt", ".rtf",
+                "application/pdf", "text/plain", "text/markdown", "text/html",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+        upload.setMaxFileSize(10 * 1024 * 1024);
+        upload.setMaxFiles(1);
+        upload.addClassName("learn-upload");
+
+        // Clear file list so it never shows inline
+        upload.getElement().addEventListener("upload-start", e ->
+                upload.getElement().executeJs("this.files = []"));
+        upload.getElement().addEventListener("upload-success", e ->
+                upload.getElement().executeJs("this.files = []"));
+
+        upload.addStartedListener(event -> {
+            statusLabel.setText("Uploading: " + event.getFileName());
+            statusBar.setIndeterminate(false);
+            statusBar.setValue(0);
+            statusRow.setVisible(true);
+        });
+
+        upload.addProgressListener(event -> {
+            if (event.getContentLength() > 0) {
+                statusBar.setIndeterminate(false);
+                statusBar.setValue((double) event.getReadBytes() / event.getContentLength());
+            } else {
+                statusBar.setIndeterminate(true);
+            }
+        });
+
+        upload.addSucceededListener(event -> {
+            var filename = event.getFileName();
+            statusLabel.setText("Extracting memories from: " + filename);
+            statusBar.setIndeterminate(true);
+            try {
+                propositionExtraction.rememberFile(buffer.getInputStream(), filename, customer);
+                getUI().ifPresent(ui -> new Thread(() -> {
+                    try {
+                        Thread.sleep(5000);
+                        ui.access(() -> {
+                            statusRow.setVisible(false);
+                            refreshMemory();
+                        });
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start());
+            } catch (Exception e) {
+                logger.error("Failed to learn file: {}", filename, e);
+                statusLabel.setText("Error: " + e.getMessage());
+                statusBar.setVisible(false);
+            }
+        });
+
+        upload.addFailedListener(event -> {
+            logger.error("Upload failed: {}", event.getReason().getMessage());
+            statusRow.setVisible(false);
+            Notification.show("Upload failed: " + event.getReason().getMessage(),
+                            5000, Notification.Position.BOTTOM_CENTER)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        });
+
+        wrapper.add(upload, statusRow);
+        return wrapper;
+    }
+
+    private Div createPropositionCard(Proposition proposition) {
+        var card = new Div();
+        card.getStyle()
+                .set("background", "var(--sb-bg-light)")
+                .set("border", "1px solid var(--sb-border)")
+                .set("border-left", "3px solid var(--sb-accent)")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("padding", "var(--lumo-space-s)")
+                .set("margin-bottom", "var(--lumo-space-s)");
+
+        // Proposition text
+        var text = new Span(proposition.getText());
+        text.getStyle()
+                .set("display", "block")
+                .set("color", "var(--sb-text-primary)")
+                .set("font-size", "var(--lumo-font-size-s)");
+        card.add(text);
+
+        // Metadata row: confidence + timestamp
+        var metaRow = new HorizontalLayout();
+        metaRow.setWidthFull();
+        metaRow.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
+        metaRow.setAlignItems(FlexComponent.Alignment.CENTER);
+        metaRow.setPadding(false);
+        metaRow.setSpacing(false);
+        metaRow.getStyle().set("margin-top", "var(--lumo-space-xs)");
+
+        var confidence = new Span("%.0f%% confidence".formatted(proposition.getConfidence() * 100));
+        confidence.getStyle()
+                .set("color", "var(--sb-text-muted)")
+                .set("font-size", "var(--lumo-font-size-xs)");
+
+        var timestamp = proposition.getCreated()
+                .atZone(ZoneId.systemDefault())
+                .format(TIME_FORMAT);
+        var time = new Span(timestamp);
+        time.getStyle()
+                .set("color", "var(--sb-text-muted)")
+                .set("font-size", "var(--lumo-font-size-xs)");
+
+        metaRow.add(confidence, time);
+        card.add(metaRow);
+
+        // Entity mentions
+        var mentions = proposition.getMentions();
+        if (mentions != null && !mentions.isEmpty()) {
+            var mentionsRow = new HorizontalLayout();
+            mentionsRow.setPadding(false);
+            mentionsRow.setSpacing(true);
+            mentionsRow.getStyle().set("margin-top", "var(--lumo-space-xs)");
+
+            for (var mention : mentions) {
+                var badge = new Span(mention.getSpan() + " (" + mention.getType() + ")");
+                badge.getStyle()
+                        .set("background", "var(--sb-bg-medium)")
+                        .set("color", "var(--sb-text-secondary)")
+                        .set("padding", "2px 6px")
+                        .set("border-radius", "4px")
+                        .set("font-size", "var(--lumo-font-size-xs)");
+                mentionsRow.add(badge);
+            }
+            card.add(mentionsRow);
+        }
+
+        return card;
     }
 
     private String getInitials(String name) {

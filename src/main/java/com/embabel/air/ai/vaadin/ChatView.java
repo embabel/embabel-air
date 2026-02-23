@@ -13,6 +13,11 @@ import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.ChatSession;
 import com.embabel.chat.Chatbot;
 import com.embabel.chat.UserMessage;
+import com.embabel.dice.proposition.PropositionRepository;
+import com.embabel.dice.proposition.extraction.IncrementalPropositionExtraction;
+import com.embabel.vaadin.component.ChatMessageBubble;
+import com.embabel.vaadin.component.Footer;
+import com.embabel.vaadin.component.UserSection;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -45,12 +50,15 @@ public class ChatView extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatView.class);
 
+    private static final String SESSION_DATA_KEY = "sessionData";
+
     private final Chatbot chatbot;
     private final String persona;
     private final AirProperties properties;
     private final DocumentService documentService;
     private final Customer currentUser;
     private final AgentPlatform agentPlatform;
+    private final PropositionRepository propositionRepository;
 
     private VerticalLayout messagesLayout;
     private Scroller messagesScroller;
@@ -59,13 +67,19 @@ public class ChatView extends VerticalLayout {
     private Footer footer;
     private SessionPanel sessionPanel;
 
+    private final IncrementalPropositionExtraction propositionExtraction;
+
     public ChatView(Chatbot chatbot, AirProperties properties, DocumentService documentService,
-                    CustomerService userService, AgentPlatform agentPlatform) {
+                    CustomerService userService, AgentPlatform agentPlatform,
+                    PropositionRepository propositionRepository,
+                    IncrementalPropositionExtraction propositionExtraction) {
         this.chatbot = chatbot;
         this.properties = properties;
         this.documentService = documentService;
         this.currentUser = userService.getAuthenticatedUser();
         this.agentPlatform = agentPlatform;
+        this.propositionRepository = propositionRepository;
+        this.propositionExtraction = propositionExtraction;
         this.persona = "Emmie";
 
         setSizeFull();
@@ -86,11 +100,16 @@ public class ChatView extends VerticalLayout {
 
         // User section (right) - clicking opens session panel
         var userSection = new UserSection(currentUser, this::toggleSessionPanel);
-        headerRow.add(headerImage, userSection);
+        var logoutButton = new Button("Logout", e -> getUI().ifPresent(ui -> ui.getPage().setLocation("/logout")));
+        logoutButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        logoutButton.addClassName("logout-button");
+        var userArea = new HorizontalLayout(userSection, logoutButton);
+        userArea.setAlignItems(Alignment.CENTER);
+        headerRow.add(headerImage, userArea);
         add(headerRow);
 
         // Session panel (drawer from right)
-        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform);
+        sessionPanel = new SessionPanel(currentUser, this::getCurrentSession, agentPlatform, propositionRepository, propositionExtraction);
         getElement().appendChild(sessionPanel.getElement());
 
         // Messages container
@@ -106,11 +125,14 @@ public class ChatView extends VerticalLayout {
         add(messagesScroller);
         setFlexGrow(1, messagesScroller);
 
+        // Restore previous messages if session exists
+        restorePreviousMessages();
+
         // Input section
         add(createInputSection());
 
         // Footer
-        footer = new Footer(documentService.getDocumentCount(), documentService.getChunkCount());
+        footer = new Footer(documentService.getDocumentCount() + " documents \u00b7 " + documentService.getChunkCount() + " chunks");
         add(footer);
 
         // Documents drawer
@@ -120,33 +142,33 @@ public class ChatView extends VerticalLayout {
         // Initialize session on attach (kicks off agent process and greeting)
         addAttachListener(event -> {
             var ui = event.getUI();
-            restorePreviousMessages(ui);
-            initializeSession();
+            initializeSession(ui);
         });
     }
 
-    private void initializeSession() {
-        var ui = getUI().orElse(null);
-        if (ui == null) return;
-
+    private void initializeSession(UI ui) {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        if (vaadinSession.getAttribute(sessionKey) != null) {
-            return; // Session already exists for this UI
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
+
+        if (sessionData != null) {
+            // Session already exists — update the output channel's UI reference
+            // in case the UI was recreated (e.g., page refresh, reconnect)
+            sessionData.outputChannel().updateUI(ui);
+            return;
         }
 
         // Create session with output channel that directly updates UI
         var outputChannel = new VaadinOutputChannel(ui);
         var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
-        var sessionData = new SessionData(chatSession, outputChannel);
-        vaadinSession.setAttribute(sessionKey, sessionData);
-        logger.info("Created new chat session for UI {}", ui.getUIId());
+        sessionData = new SessionData(chatSession, outputChannel);
+        vaadinSession.setAttribute(SESSION_DATA_KEY, sessionData);
+        logger.info("Created new chat session");
         // Greeting will be displayed automatically when it arrives via the output channel
     }
 
     private void refreshFooter() {
         remove(footer);
-        footer = new Footer(documentService.getDocumentCount(), documentService.getChunkCount());
+        footer = new Footer(documentService.getDocumentCount() + " documents \u00b7 " + documentService.getChunkCount() + " chunks");
         add(footer);
     }
 
@@ -159,36 +181,24 @@ public class ChatView extends VerticalLayout {
     }
 
     private ChatSession getCurrentSession() {
-        var ui = getUI().orElse(null);
-        if (ui == null) return null;
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
         return sessionData != null ? sessionData.chatSession() : null;
     }
 
     private record SessionData(ChatSession chatSession, VaadinOutputChannel outputChannel) {
     }
 
-    /**
-     * Get the session attribute key for this UI instance.
-     * Each browser tab (UI) gets its own chat session to prevent cross-talk.
-     */
-    private String getSessionKey(UI ui) {
-        return "sessionData-" + ui.getUIId();
-    }
-
     private SessionData getOrCreateSession(UI ui) {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
 
         if (sessionData == null) {
             var outputChannel = new VaadinOutputChannel(ui);
             var chatSession = chatbot.createSession(currentUser, outputChannel, null, UUID.randomUUID().toString());
             sessionData = new SessionData(chatSession, outputChannel);
-            vaadinSession.setAttribute(sessionKey, sessionData);
-            logger.info("Created new chat session for UI {}", ui.getUIId());
+            vaadinSession.setAttribute(SESSION_DATA_KEY, sessionData);
+            logger.info("Created new chat session");
         }
 
         return sessionData;
@@ -285,10 +295,9 @@ public class ChatView extends VerticalLayout {
         messagesScroller.getElement().executeJs("this.scrollTop = this.scrollHeight");
     }
 
-    private void restorePreviousMessages(UI ui) {
+    private void restorePreviousMessages() {
         var vaadinSession = VaadinSession.getCurrent();
-        var sessionKey = getSessionKey(ui);
-        var sessionData = (SessionData) vaadinSession.getAttribute(sessionKey);
+        var sessionData = (SessionData) vaadinSession.getAttribute(SESSION_DATA_KEY);
         if (sessionData == null) {
             return;
         }
@@ -312,11 +321,18 @@ public class ChatView extends VerticalLayout {
      * Uses CompletableFuture to signal when a response to a user message has been received.
      */
     private class VaadinOutputChannel implements OutputChannel {
-        private final UI ui;
+        private volatile UI ui;
         private final AtomicReference<CompletableFuture<Void>> pendingResponse = new AtomicReference<>();
         volatile Div currentToolCallIndicator; // package-private for access from sendMessage
 
         VaadinOutputChannel(UI ui) {
+            this.ui = ui;
+        }
+
+        /**
+         * Update the UI reference when the UI is recreated (e.g., page refresh, reconnect).
+         */
+        void updateUI(UI ui) {
             this.ui = ui;
         }
 

@@ -6,6 +6,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.login.LoginForm;
+import com.vaadin.flow.component.login.LoginI18n;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
@@ -30,6 +31,9 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         setJustifyContentMode(JustifyContentMode.CENTER);
 
         loginForm.setAction("login");
+        var i18n = LoginI18n.createDefault();
+        i18n.getForm().setTitle("Embabel Air");
+        loginForm.setI18n(i18n);
 
         var title = new H1("Embabel Air");
         title.addClassName("login-title");
@@ -39,7 +43,7 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
 
         var demoSection = createDemoSection();
 
-        add(title, subtitle, loginForm, demoSection);
+        add(/*title, subtitle,*/ loginForm, demoSection);
 
         var topUser = DevDataLoader.DEMO_USERS.stream().filter(u -> u.level() == SkyPointsStatus.Level.PLATINUM)
                 .findFirst().orElseThrow();

@@ -5,30 +5,25 @@ import com.embabel.agent.rag.ingestion.TikaHierarchicalContentReader;
 import com.embabel.agent.rag.model.ContentRoot;
 import com.embabel.agent.rag.model.NavigableDocument;
 import com.embabel.agent.rag.store.ChunkingContentElementRepository;
-import io.vavr.collection.List;
+import com.embabel.vaadin.document.DocumentInfoProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.StreamSupport;
 
 /**
  * Service for managing document retrieval.
  */
 @Service
-public class DocumentService {
+public class DocumentService implements DocumentInfoProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(DocumentService.class);
 
     private final HierarchicalContentReader contentReader = new TikaHierarchicalContentReader();
     private final ChunkingContentElementRepository contentElementRepository;
-
-    /**
-     * Summary info about an ingested document.
-     */
-    public record DocumentInfo(String uri, String title, String context, Instant ingestedAt) {
-    }
 
     public DocumentService(
             ChunkingContentElementRepository chunkingContentElementRepository) {
@@ -43,17 +38,17 @@ public class DocumentService {
         return document;
     }
 
-    /**
-     * Get list of all ingested documents.
-     */
-    public List<DocumentInfo> getDocuments() {
-        return List.ofAll(contentElementRepository.findAll(ContentRoot.class))
-                .map(doc -> new DocumentInfo(
+    @Override
+    public List<DocumentInfoProvider.DocumentInfo> getDocuments() {
+        return StreamSupport.stream(contentElementRepository.findAll(ContentRoot.class).spliterator(), false)
+                .map(doc -> new DocumentInfoProvider.DocumentInfo(
                         doc.getUri(),
                         doc.getTitle(),
                         extractContext(doc.getMetadata()),
+                        0,
                         doc.getIngestionTimestamp()
-                ));
+                ))
+                .toList();
     }
 
     private String extractContext(Map<String, ?> metadata) {
@@ -64,25 +59,19 @@ public class DocumentService {
         return context != null ? context.toString() : "";
     }
 
-    /**
-     * Delete a document by its URI.
-     */
+    @Override
     public boolean deleteDocument(String uri) {
         logger.info("Deleting document: {}", uri);
         var result = contentElementRepository.deleteRootAndDescendants(uri);
         return result != null;
     }
 
-    /**
-     * Get total document count.
-     */
+    @Override
     public int getDocumentCount() {
         return contentElementRepository.info().getDocumentCount();
     }
 
-    /**
-     * Get total chunk count.
-     */
+    @Override
     public int getChunkCount() {
         return contentElementRepository.info().getChunkCount();
     }

@@ -1,0 +1,44 @@
+You are an expert at extracting structured facts about airline customers.
+
+Extract propositions (factual statements) from the following text.
+Focus on facts about or relevant to the customer.
+
+## Entity Types in Schema
+{% for type in model.context.schema.domainTypes %}
+- {{ type.ownLabel }}: {{ type.description | default(type.ownLabel) }}
+{% endfor %}
+
+## What to Extract
+- Travel preferences (seat preferences, meal preferences, airline preferences)
+- Loyalty/membership information
+- Destinations they mention traveling to or from
+- Companions (family, business colleagues)
+- Dietary needs or restrictions
+- Frequent routes or travel patterns
+- Home city or country
+- Any other factual information about the customer
+
+## What NOT to Extract
+- Greetings or pleasantries
+- Questions the user asks (unless they reveal preferences)
+- Assistant responses or opinions
+- Transient booking details already in the system
+
+## Output Format
+For each proposition, provide:
+- text: A clear, factual statement starting with "{{ customer.name }}" as the subject (e.g., "{{ customer.name }} prefers window seats")
+- mentions: Entity references with type and role
+- confidence: How certain you are (0.0-1.0)
+- decay: How quickly this fact becomes stale (0.0 for permanent facts, higher for temporal ones)
+- importance: How useful this fact is for future interactions (0.0-1.0)
+- reasoning: Brief explanation of why you extracted this
+
+## Text
+{{ model.chunk.text }}
+
+{% if model.existingPropositions is defined and model.existingPropositions %}
+## Already Known Facts (avoid duplicates)
+{% for prop in model.existingPropositions %}
+- {{ prop.text }}
+{% endfor %}
+{% endif %}

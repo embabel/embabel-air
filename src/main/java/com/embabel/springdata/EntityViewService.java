@@ -870,7 +870,7 @@ public class EntityViewService {
         }
 
         private Result convertResult(Object result) {
-            if (result == null) return Result.text("");
+            if (result == null) return Result.text("No result");
             if (result instanceof String s) return Result.text(s);
             if (result instanceof Result r) return r;
 
@@ -1237,7 +1237,7 @@ public class EntityViewService {
         }
 
         private Result convertResult(Object result) {
-            if (result == null) return Result.text("");
+            if (result == null) return Result.text("No result");
             if (result instanceof String s) return Result.text(s);
             if (result instanceof Result r) return r;
 

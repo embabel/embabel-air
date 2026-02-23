@@ -13,4 +13,10 @@ public interface FlightSegmentRepository extends JpaRepository<FlightSegment, St
             LocalDateTime startDateTime,
             LocalDateTime endDateTime
     );
+
+    List<FlightSegment> findByDepartureAirportCodeAndDepartureDateTimeBetween(
+            String departureAirportCode,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime
+    );
 }
