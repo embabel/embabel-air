@@ -4,6 +4,7 @@ import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.core.DataDictionary;
 import com.embabel.agent.rag.model.NamedEntity;
 import com.embabel.agent.rag.pgvector.JdbcNamedEntityDataRepository;
+import com.embabel.agent.rag.pgvector.JdbcNativeFinder;
 import com.embabel.agent.rag.pgvector.NativeEntityLookup;
 import com.embabel.agent.rag.service.NamedEntityDataRepository;
 import com.embabel.air.ai.AirProperties;
@@ -30,11 +31,14 @@ import com.embabel.dice.proposition.extraction.LlmPropositionExtractor;
 import com.embabel.dice.proposition.jdbc.JdbcPropositionRepository;
 import com.embabel.dice.proposition.revision.LlmPropositionReviser;
 import com.embabel.dice.proposition.revision.PropositionReviser;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.EnableAsync;
+
+import java.util.List;
 
 /**
  * Assembles the full DICE memory pipeline for Embabel Air:
@@ -71,21 +75,23 @@ public class MemoryConfiguration {
     NamedEntityDataRepository namedEntityDataRepository(
             JdbcClient jdbcClient, Ai ai, DataDictionary dataDictionary,
             CustomerRepository customerRepository) {
+        var nativeFinder = new JdbcNativeFinder(java.util.Map.of(Customer.class, new NativeEntityLookup<Customer>() {
+            @Override
+            public Customer findById(@NonNull String id) {
+                return customerRepository.findById(id).orElse(null);
+            }
+
+            @Override
+            @NonNull
+            public List<Customer> findAll() {
+                return customerRepository.findAll();
+            }
+        }));
         return JdbcNamedEntityDataRepository.builder()
                 .withJdbcClient(jdbcClient)
                 .withDataDictionary(dataDictionary)
                 .withEmbeddingService(ai.withDefaultEmbeddingService())
-                .withNativeLookup(Customer.class, new NativeEntityLookup<>() {
-                    @Override
-                    public Customer findById(String id) {
-                        return customerRepository.findById(id).orElse(null);
-                    }
-
-                    @Override
-                    public java.util.List<Customer> findAll() {
-                        return customerRepository.findAll();
-                    }
-                })
+                .withNativeFinder(nativeFinder)
                 .build();
     }
 
