@@ -65,7 +65,8 @@ public class TestAiConfiguration {
                 "text-embedding-3-small",
                 "OpenAI",
                 new FakeEmbeddingModel(1536),
-                1536
+                1536,
+                null
         );
     }
 

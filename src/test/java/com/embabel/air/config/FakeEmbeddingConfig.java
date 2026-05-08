@@ -31,7 +31,8 @@ public class FakeEmbeddingConfig {
                 "text-embedding-3-small",
                 "Fake",
                 new FakeEmbeddingModel(),
-                DIMENSIONS
+                DIMENSIONS,
+                null
         );
     }
 
